@@ -646,24 +646,14 @@ ws://api.familytales.app/ws/ocr/{documentId}
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
     display_name VARCHAR(255),
     
-    -- Subscription info
-    subscription_tier VARCHAR(20) DEFAULT 'free' CHECK (subscription_tier IN ('free', 'premium', 'family_legacy')),
-    subscription_status VARCHAR(20) DEFAULT 'active',
-    subscription_expires_at TIMESTAMPTZ,
-    stripe_customer_id VARCHAR(255),
-    
-    -- Preferences
+    -- User preferences
     default_voice VARCHAR(50),
     default_language VARCHAR(10) DEFAULT 'en',
     auto_enhance_images BOOLEAN DEFAULT true,
-    
-    -- Usage tracking
-    documents_processed INTEGER DEFAULT 0,
-    audio_minutes_generated DECIMAL(10,2) DEFAULT 0,
-    storage_used_mb DECIMAL(10,2) DEFAULT 0,
+    default_family_id UUID, -- Which family to show by default
     
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -671,8 +661,53 @@ CREATE TABLE users (
     last_login_at TIMESTAMPTZ
 );
 
+-- Family accounts table (one subscription per family)
+CREATE TABLE families (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL, -- "The Smith Family"
+    admin_user_id UUID, -- Who manages subscription
+    invite_code VARCHAR(10) UNIQUE,
+    
+    -- Subscription info (ONE per family)
+    subscription_tier VARCHAR(20) DEFAULT 'free_trial',
+    subscription_status VARCHAR(20) DEFAULT 'active',
+    subscription_expires_at TIMESTAMPTZ,
+    stripe_customer_id VARCHAR(255),
+    stripe_subscription_id VARCHAR(255),
+    
+    -- Free trial tracking
+    trial_scans_used INTEGER DEFAULT 0,
+    trial_expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
+    
+    -- Usage tracking (for the whole family)
+    documents_processed INTEGER DEFAULT 0,
+    audio_minutes_generated DECIMAL(10,2) DEFAULT 0,
+    storage_used_mb DECIMAL(10,2) DEFAULT 0,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Many-to-many: Users can be in multiple families
+CREATE TABLE family_members (
+    family_id UUID REFERENCES families(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) CHECK (role IN ('admin', 'member')),
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    invited_by UUID REFERENCES users(id),
+    PRIMARY KEY (family_id, user_id)
+);
+
+-- Add foreign key after tables exist
+ALTER TABLE families ADD CONSTRAINT fk_admin_user 
+    FOREIGN KEY (admin_user_id) REFERENCES users(id);
+ALTER TABLE users ADD CONSTRAINT fk_default_family
+    FOREIGN KEY (default_family_id) REFERENCES families(id);
+
 CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_subscription ON users(subscription_tier, subscription_status);
+CREATE INDEX idx_families_admin ON families(admin_user_id);
+CREATE INDEX idx_families_invite ON families(invite_code);
+CREATE INDEX idx_family_members_user ON family_members(user_id);
 ```
 
 #### Documents Table
@@ -680,6 +715,7 @@ CREATE INDEX idx_users_subscription ON users(subscription_tier, subscription_sta
 CREATE TABLE documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    family_id UUID REFERENCES families(id) ON DELETE CASCADE,
     type VARCHAR(20) CHECK (type IN ('letter', 'memoir', 'journal', 'recipe', 'photo_annotation')),
     status VARCHAR(20) DEFAULT 'uploading' CHECK (status IN ('uploading', 'processing', 'ready', 'error')),
     
@@ -790,33 +826,8 @@ CREATE TABLE collection_collaborators (
 CREATE INDEX idx_collections_user ON collections(user_id);
 ```
 
-#### Family Groups Table
-```sql
-CREATE TABLE family_groups (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    invite_code VARCHAR(10) UNIQUE,
-    
-    -- Settings
-    auto_share_new_documents BOOLEAN DEFAULT false,
-    require_approval_for_edits BOOLEAN DEFAULT false,
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE family_members (
-    family_group_id UUID REFERENCES family_groups(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(20) CHECK (role IN ('admin', 'member')),
-    joined_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (family_group_id, user_id)
-);
-
-CREATE INDEX idx_family_groups_owner ON family_groups(owner_id);
-CREATE INDEX idx_family_groups_invite ON family_groups(invite_code);
-```
+-- Note: Family structure is defined above in the users/families tables
+-- The family_members junction table handles users being in multiple families
 
 #### Folders Table
 ```sql
@@ -1343,91 +1354,121 @@ Azure Speech:
 4. **Scalable**: Handle unexpected viral growth
 5. **Low Initial Cost**: ~$230/month is manageable
 
-## Freemium Business Model
+## Family-Based Subscription Model
+
+### Core Concept: One Pays, All Play
+The family administrator (usually Mom/Dad) purchases ONE subscription that covers the ENTIRE family. No individual billing, no seat counting - true family sharing.
 
 ### Tier Structure
 
-#### Free Tier (Forever Free)
+#### Free Trial - "Test with Grandma"
 **Limits**:
-- 3 document scans per month
-- Standard quality OCR only
-- Basic TTS voices (robotic)
-- No family sharing
-- 7-day storage for audio files
-- Watermark on exports
+- 3 document scans total
+- 1 week access for whole family
+- Basic TTS voices only
+- See if Grandma can use it
 
-**Purpose**: Let users experience core value, create habit
+**Purpose**: Risk-free family onboarding
 
-#### Premium Tier ($9.99/month or $79/year)
-**Features**:
+#### Family Plan ($14.99/month or $119/year)
+**The Sweet Spot - Everything Most Families Need**:
+- Unlimited family members (seriously, invite everyone)
 - Unlimited document scans
-- High-accuracy OCR with corrections
 - Premium natural voices
-- Family sharing (up to 5 members)
-- Unlimited cloud storage
-- Download audio files
+- Automatic family-wide sharing
+- Offline downloads for all
 - Synchronized playback
 - Email/chat support
+- No seat limits, no user counting
 
-**Target**: Individual users and small families
+**Target**: 95% of families fit here
 
-#### Family Legacy Tier ($19.99/month or $179/year)
-**Everything in Premium plus**:
-- Unlimited family members
-- Voice cloning (preserve grandpa's voice)
-- Bulk scanning mode
-- API access
-- White-label sharing pages
-- Priority processing
-- Video tutorials for elderly
-- Phone support
+#### Family Legacy ($29.99/month or $299/year)
+**For Families Preserving Serious History**:
+- Everything in Family Plan
+- Voice cloning (preserve voices before they're gone)
+- Bulk scanning mode (entire boxes at once)
+- White-label domain (memories.smithfamily.com)
+- API access for tech-savvy family members
+- Phone support for elderly members
+- Early access to new features
+- Priority processing queue
 
-**Target**: Large families, family historians
+**Target**: Large families, family historians, estate planning
 
-### Feature Comparison Implementation
+### Family Account Implementation
 
 ```rust
 #[derive(Debug, Clone)]
-pub struct UserTier {
-    pub tier: TierLevel,
-    pub limits: TierLimits,
+pub struct FamilyAccount {
+    pub id: Uuid,
+    pub name: String, // "The Smith Family"
+    pub subscription: FamilySubscription,
+    pub admin_id: Uuid, // Who pays
+    pub members: Vec<FamilyMember>,
+    pub invite_code: String, // Easy 6-digit code
 }
 
 #[derive(Debug, Clone)]
-pub struct TierLimits {
-    pub monthly_scans: Option<u32>,
-    pub family_members: Option<u32>,
-    pub storage_days: Option<u32>,
-    pub ocr_quality: OcrQuality,
-    pub voice_quality: VoiceQuality,
-    pub features: HashSet<Feature>,
+pub struct FamilySubscription {
+    pub tier: SubscriptionTier,
+    pub status: SubscriptionStatus,
+    pub paid_by: Uuid, // Usually Mom or Dad
+    pub stripe_subscription_id: String,
+    pub expires_at: DateTime<Utc>,
 }
 
-impl TierLimits {
-    pub fn free() -> Self {
-        Self {
-            monthly_scans: Some(3),
-            family_members: Some(0),
-            storage_days: Some(7),
-            ocr_quality: OcrQuality::Basic,
-            voice_quality: VoiceQuality::Standard,
-            features: HashSet::new(),
+#[derive(Debug, Clone)]
+pub enum SubscriptionTier {
+    FreeTrial { 
+        scans_remaining: u8,
+        expires_at: DateTime<Utc>,
+    },
+    FamilyPlan, // $14.99 - unlimited everything
+    FamilyLegacy, // $29.99 - plus voice cloning, bulk mode
+}
+
+// Context-aware feature access
+pub struct UserContext {
+    pub user: User,
+    pub current_family: FamilyAccount,
+    pub all_families: Vec<FamilyAccount>,
+}
+
+impl UserContext {
+    pub fn can_use_premium_features(&self) -> bool {
+        // Only in the context of a paid family
+        matches!(
+            self.current_family.subscription.tier,
+            SubscriptionTier::FamilyPlan | SubscriptionTier::FamilyLegacy
+        ) && self.current_family.subscription.status == SubscriptionStatus::Active
+    }
+    
+    pub fn can_scan(&self) -> bool {
+        match &self.current_family.subscription.tier {
+            SubscriptionTier::FreeTrial { scans_remaining, expires_at } => {
+                *scans_remaining > 0 && Utc::now() < *expires_at
+            },
+            SubscriptionTier::FamilyPlan | SubscriptionTier::FamilyLegacy => {
+                self.current_family.subscription.status == SubscriptionStatus::Active
+            }
         }
     }
     
-    pub fn premium() -> Self {
-        Self {
-            monthly_scans: None, // Unlimited
-            family_members: Some(5),
-            storage_days: None, // Unlimited
-            ocr_quality: OcrQuality::Advanced,
-            voice_quality: VoiceQuality::Premium,
-            features: hashset![
-                Feature::FamilySharing,
-                Feature::Downloads,
-                Feature::SyncPlayback,
-                Feature::CloudStorage,
-            ],
+    pub fn available_voices(&self) -> Vec<Voice> {
+        if self.can_use_premium_features() {
+            Voice::all_premium_voices()
+        } else {
+            Voice::basic_voices_only()
+        }
+    }
+    
+    pub fn switch_family(&mut self, family_id: Uuid) -> Result<()> {
+        if let Some(family) = self.all_families.iter().find(|f| f.id == family_id) {
+            self.current_family = family.clone();
+            Ok(())
+        } else {
+            Err(ApiError::FamilyNotFound)
         }
     }
 }

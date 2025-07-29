@@ -127,18 +127,48 @@ Based on the family-centric nature of FamilyTales, here are additional features 
 - Estate planners and family historians
 - Libraries, museums, and senior living facilities
 
-## 💰 Business Model
+## 💰 Business Model - Family-First Pricing
 
-### Freemium Structure
-- **Free Tier**: 3 document scans per month, basic features, no sharing
-- **Premium**: $9.99/month - Unlimited scans, premium voices, family sharing (5 members)
-- **Family Legacy**: $19.99/month - Unlimited family, voice cloning, bulk processing
-- **Enterprise**: Custom pricing for institutions
+### One Subscription, Whole Family Benefits
+When one family member (usually Mom or Dad) subscribes, the entire family gets access. No individual accounts needed - true family sharing.
 
-### Revenue Projections
-- Year 1: $580K
-- Year 2: $2.8M
-- Year 3: $10.2M (break-even at Month 18)
+### Pricing Tiers
+
+#### Free Trial - "Try Before You Buy"
+- 3 document scans to test quality
+- 1 week of family access
+- Basic voices only
+- Perfect for testing with Grandma's first letter
+
+#### Family Plan - $14.99/month or $119/year
+- **Unlimited family members** - kids, grandparents, cousins, everyone!
+- **Unlimited document scans**
+- **Premium natural voices**
+- **All documents shared with family automatically**
+- **Offline downloads for everyone**
+- **Priority support**
+- *Most popular - covers 95% of families*
+
+#### Family Legacy - $29.99/month or $299/year
+Everything in Family Plan plus:
+- **Voice cloning** - Preserve Dad's voice forever
+- **Bulk scanning mode** - Process entire boxes efficiently
+- **White-label sharing** - Your family's custom domain
+- **API access** for developers in the family
+- **Phone support** for elderly family members
+- **Early access** to new features
+
+### Why Family-Based Pricing Works
+- **One buyer, many users**: Mom pays, whole family benefits
+- **Viral growth**: Each family member invites their in-laws
+- **Higher retention**: Hard to cancel when Grandma uses it daily
+- **Simplicity**: No managing individual subscriptions
+- **True value**: $14.99 preserves priceless family memories
+
+### Revenue Projections (Updated)
+- Year 1: 40K families × $14.99 = $720K ARR
+- Year 2: 150K families × $14.99 = $2.7M ARR  
+- Year 3: 500K families × $16.99 (slight increase) = $10.2M ARR
 
 ## 🎯 Why Our Tech Choices
 

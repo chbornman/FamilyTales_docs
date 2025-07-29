@@ -44,10 +44,24 @@ But these treasures face real challenges:
 ## ✨ Core Features
 
 ### 🏠 Family-First Design
-- **One-Scan-Many-Listen**: Grandma in Florida scans, family worldwide listens instantly
-- **Simple Invites**: 6-digit codes and QR codes - no email required
-- **Progressive Onboarding**: Listen first, create account when ready
-- **Elder-Friendly UI**: Large buttons, clear navigation, voice guidance
+
+### Easy Family Invitations
+- **Direct Links**: Click and join - `familytales.app/join/abc123`
+- **Email Invites**: Beautiful invitations via SendGrid
+- **QR Codes**: Perfect for family reunions
+- **No Friction**: Listen first, create account when ready
+
+### Family Management
+- **Head of Family**: Person who pays controls membership
+- **Multiple Families**: Users can belong to Mom's side AND Dad's side
+- **Smart Context**: App knows which family you're viewing
+- **Transfer Ownership**: Pass the torch when needed
+
+### Everyone Can Contribute
+- **All family members can scan/upload** - not just the account owner
+- **Collaborative corrections** - help fix Grandpa's tricky handwriting
+- **Shared organization** - build Memory Books together
+- **Unified library** - everything in one place
 
 ### 🔒 Privacy & Preservation
 - **Self-Hosted OCR**: Your documents never leave our secure servers
@@ -55,12 +69,29 @@ But these treasures face real challenges:
 - **Encrypted Storage**: Military-grade protection for your memories
 - **Offline Access**: Download for areas with poor connectivity
 
-### 🎯 Smart Organization
-- **Memory Books**: Organize content by theme ("Dad's War Letters", "Family Road Trip 1975")
-- **Intelligent Folders**: "/Grandpa's Letters/1943/From France"
-- **Rich Tagging**: People, places, dates, topics auto-detected
-- **Photo Integration**: Link photos to specific moments in letters
-- **Timeline View**: See your family history chronologically
+### 🎯 Smart Organization with Memory Books
+
+**Memory Books** are flexible collections that can be as simple or complex as you need:
+
+#### Simple: One Thread
+```
+"Grandma's Letters" → Single audio file with all letters
+```
+
+#### Complex: Multiple Threads
+```
+"Smith Family Heritage"
+├── "War Years" (15 min audio)
+├── "Love Letters" (20 min audio)
+└── "Recipe Collection" (10 min audio)
+```
+
+#### Features
+- **Auto-organization**: AI suggests groupings
+- **Mixed media**: Combine photos, letters, recipes
+- **Print-ready**: Export as physical books
+- **Timeline view**: See content chronologically
+- **Smart search**: Find content across all books
 
 ### 🌍 Global Family Features
 - **Instant Streaming**: Mux handles all HLS complexity automatically
@@ -136,46 +167,57 @@ Based on the family-centric nature of FamilyTales, here are additional features 
 
 ## 💰 Business Model - Family-First Pricing
 
-### One Subscription, Whole Family Benefits
-When one family member (usually Mom or Dad) subscribes, the entire family gets access. No individual accounts needed - true family sharing.
+### Core Concept: One Subscription, Whole Family Benefits
+When the head of family (usually Mom or Dad) subscribes, the ENTIRE family gets access. No counting seats, no individual billing - true family sharing that just works.
 
 ### Pricing Tiers
 
-#### Free Trial - "Try Before You Buy"
-- 3 document scans to test quality
-- 1 week of family access
-- Basic voices only
-- Perfect for testing with Grandma's first letter
+#### Free Tier - "Family Memories Starter"
+**Perfect for trying out the service**
+- **3 document scans per month** (resets monthly)
+- **Basic voices only** (one male, one female)
+- **Up to 5 family members**
+- **7-day trial of premium features** on sign-up
+- **Watermark on shared content** ("Created with FamilyTales")
+- **Standard processing speed** (up to 24 hours)
+- **View-only access** to premium family content
 
 #### Family Plan - $14.99/month or $119/year
-- **Unlimited family members** - kids, grandparents, cousins, everyone!
+**The sweet spot for most families**
+- **Unlimited family members** - seriously, invite everyone!
 - **Unlimited document scans**
-- **Premium natural voices**
-- **All documents shared with family automatically**
-- **Offline downloads for everyone**
+- **Premium voices** (10+ natural voices with accents)
+- **Instant processing** (under 5 minutes)
+- **No watermarks**
+- **Public sharing** for social media
+- **Offline downloads**
 - **Priority support**
-- *Most popular - covers 95% of families*
+- **Memory Book templates**
 
 #### Family Legacy - $29.99/month or $299/year
+**For serious family historians**
+
 Everything in Family Plan plus:
-- **Voice cloning** - Preserve Dad's voice forever
-- **Bulk scanning mode** - Process entire boxes efficiently
-- **White-label sharing** - Your family's custom domain
-- **API access** for developers in the family
-- **Phone support** for elderly family members
+- **Two family groups** (both sides of the family)
+- **Voice cloning** (preserve actual voices)
+- **Bulk upload mode** (entire boxes at once)
+- **API access** for tech-savvy family members
+- **White-label sharing** (memories.yourfamily.com)
+- **Phone support** for elderly members
+- **Print-on-demand credits** ($10/month)
 - **Early access** to new features
 
-### Why Family-Based Pricing Works
-- **One buyer, many users**: Mom pays, whole family benefits
-- **Viral growth**: Each family member invites their in-laws
-- **Higher retention**: Hard to cancel when Grandma uses it daily
-- **Simplicity**: No managing individual subscriptions
-- **True value**: $14.99 preserves priceless family memories
+### Smart Freemium Conversion
+- **Emotional triggers**: "You've preserved 3 memories! Upgrade to preserve them all."
+- **Voice previews**: 30-second premium voice samples
+- **Family viral loop**: Free users in premium families see the benefits
+- **Seasonal campaigns**: Mother's Day, Christmas gift subscriptions
 
-### Revenue Projections (Updated)
-- Year 1: 40K families × $14.99 = $720K ARR
-- Year 2: 150K families × $14.99 = $2.7M ARR  
-- Year 3: 500K families × $16.99 (slight increase) = $10.2M ARR
+### Why This Works
+- **One buyer, many users**: Grandma doesn't need to figure out payments
+- **Natural viral growth**: Each family member brings their in-laws
+- **High retention**: Can't cancel when the whole family uses it
+- **Clear value**: $14.99/month preserves priceless memories forever
 
 ## 🎯 Why Our Tech Choices
 
@@ -205,20 +247,40 @@ Everything in Family Plan plus:
 - **Audio Playback**: just_audio with native HLS support
 - **State Management**: Riverpod 2.0 (compile-safe, testable)
 - **Navigation**: go_router with Riverpod integration
+- **Authentication**: Clerk (seamless across platforms)
 
 ### Backend (MVP from Day 1)
 - **API Server**: Rust with Axum framework
 - **Database**: PostgreSQL (primary) + Redis (cache/sessions)
 - **Media Storage**: Mux (handles all video/audio/image storage and HLS streaming)
 - **Job Queue**: RabbitMQ (for future local PC processing)
-- **Authentication**: JWT with Argon2 password hashing
-- **Payments**: Stripe integration
+- **Authentication**: Clerk integration with JWT
+- **Email**: SendGrid for beautiful family invitations
+- **Payments**: Stripe for family subscriptions
 
-### Processing (MVP → Future)
-- **MVP**: Google Cloud Vision (OCR) + Google Cloud TTS (audio)
-- **Phase 2**: Hybrid model with local PC for premium users
-- **Phase 3**: Self-hosted olmOCR with GPU acceleration
-- **Cost**: ~$0.002/doc OCR + $0.016/doc TTS in MVP phase
+### Processing & Voice Options
+
+#### MVP Text-to-Speech Choices:
+1. **Google Cloud TTS** (Recommended)
+   - WaveNet voices: Most natural sounding
+   - 380+ voice options across languages/accents
+   - Cost: ~$0.016 per document
+   
+2. **Amazon Polly**
+   - Good quality, slightly robotic
+   - Neural voices available
+   - Cost: ~$0.008-0.016 per document
+
+3. **ElevenLabs** (Premium tier)
+   - State-of-the-art quality
+   - Voice cloning capability
+   - Cost: Higher but worth it for Legacy tier
+
+#### Voice Selection
+- **Free tier**: 2 basic voices (male/female)
+- **Paid tiers**: 10+ premium voices
+- **Legacy tier**: Voice cloning to preserve actual family voices
+- **Smart selection**: Choose voice per Memory Book thread
 
 ## 🏗 Project Structure
 

@@ -1077,6 +1077,38 @@ CREATE TABLE family_invites (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Photo narrations (for standalone photos with audio)
+CREATE TABLE photo_narrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    segment_id UUID REFERENCES content_segments(id) ON DELETE CASCADE,
+    narrator_id UUID REFERENCES users(id),
+    narration_text TEXT,
+    narration_audio_url VARCHAR(500),
+    narration_duration DECIMAL(10,3),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Content links (for connecting photos to documents)
+CREATE TABLE content_links (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    from_segment_id UUID REFERENCES content_segments(id) ON DELETE CASCADE,
+    to_segment_id UUID REFERENCES content_segments(id) ON DELETE CASCADE,
+    link_type VARCHAR(30) CHECK (link_type IN ('illustration', 'reference', 'companion')),
+    timestamp_link DECIMAL(10,3), -- Optional: specific timestamp in audio
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(from_segment_id, to_segment_id)
+);
+
+-- Tags for all content
+CREATE TABLE content_tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    segment_id UUID REFERENCES content_segments(id) ON DELETE CASCADE,
+    tag_type VARCHAR(20) CHECK (tag_type IN ('people', 'topics', 'locations', 'time_periods', 'custom')),
+    tag_value VARCHAR(255),
+    confidence DECIMAL(3,2),
+    UNIQUE(segment_id, tag_type, tag_value)
+);
+
 -- Add foreign key constraints
 ALTER TABLE users ADD CONSTRAINT fk_current_family
     FOREIGN KEY (current_family_id) REFERENCES families(id);
@@ -1090,7 +1122,90 @@ CREATE INDEX idx_segments_thread ON content_segments(thread_id);
 CREATE INDEX idx_segments_timestamp ON content_segments(thread_id, timestamp_start);
 CREATE INDEX idx_invites_code ON family_invites(invite_code);
 CREATE INDEX idx_invites_family ON family_invites(family_id);
+CREATE INDEX idx_photo_narrations_segment ON photo_narrations(segment_id);
+CREATE INDEX idx_content_links_from ON content_links(from_segment_id);
+CREATE INDEX idx_content_links_to ON content_links(to_segment_id);
+CREATE INDEX idx_content_tags_segment ON content_tags(segment_id);
 ```
+
+## Photo & Mixed Media Features
+
+### Photo Narration System
+
+Photos can have their own audio narrations, separate from document processing:
+
+```rust
+pub struct PhotoNarration {
+    // User records audio describing the photo
+    pub async fn record_narration(
+        &self,
+        photo: &ContentSegment,
+        audio_data: Vec<u8>,
+        transcript: String,
+    ) -> Result<Narration> {
+        // Upload audio to Mux
+        let audio_asset = self.mux_client.upload_audio(audio_data).await?;
+        
+        // Save narration
+        let narration = Narration {
+            segment_id: photo.id,
+            narrator_id: current_user.id,
+            audio_url: audio_asset.playback_url,
+            transcript,
+            duration: audio_asset.duration,
+        };
+        
+        Ok(narration)
+    }
+}
+```
+
+### Mixed Media Memory Books
+
+Combine different content types in meaningful ways:
+
+```typescript
+interface MixedMediaThread {
+  // Example: "Our Wedding Day"
+  segments: [
+    {
+      type: 'photo',
+      url: 'wedding-ceremony.jpg',
+      narration: 'This was the moment we said I do...',
+      timestamp: { start: 0, end: 15 }
+    },
+    {
+      type: 'handwritten_document',
+      url: 'wedding-vows.jpg',
+      ocr_text: 'I promise to love you...',
+      timestamp: { start: 15, end: 45 }
+    },
+    {
+      type: 'photo',
+      url: 'first-dance.jpg',
+      narration: 'Our first dance as husband and wife',
+      timestamp: { start: 45, end: 60 }
+    }
+  ]
+}
+```
+
+### Smart Photo Features
+
+1. **Auto-grouping by Date/Event**
+   - AI detects related photos
+   - Suggests thread creation
+   - Maintains chronological order
+
+2. **Face Detection & Tagging**
+   - Auto-identify family members
+   - Link to family tree
+   - Search by person
+
+3. **Scene Understanding**
+   - "Find all Christmas photos"
+   - "Show beach vacations"
+   - "Military uniforms"
 
 ## Multiple Input Format Support
 
@@ -1207,201 +1322,398 @@ impl FormatDetector {
     }
 }
 ```
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    shared_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (document_id, user_id)
-);
 
-CREATE INDEX idx_documents_user ON documents(user_id);
-CREATE INDEX idx_documents_status ON documents(status);
-CREATE INDEX idx_documents_folder ON documents(folder_path);
+## Authentication & Family Management
+
+### Authentication with Clerk
+
+FamilyTales uses Clerk for authentication, providing a seamless experience across web and mobile:
+
+```typescript
+// Clerk integration for Flutter/Web
+class AuthService {
+  final ClerkClient clerk;
+  
+  // Seamless invite flow
+  async joinFamilyViaInvite(inviteToken: string) {
+    // Decode JWT invite token
+    const invite = await this.decodeInviteToken(inviteToken);
+    
+    // If not logged in, show Clerk sign-up with pre-filled family
+    if (!clerk.user) {
+      return clerk.signUp({
+        redirectUrl: `/join-family?token=${inviteToken}`,
+        afterSignUpUrl: `/families/${invite.familyId}/welcome`
+      });
+    }
+    
+    // If logged in, add to family immediately
+    await this.addUserToFamily(clerk.user.id, invite.familyId);
+  }
+}
 ```
 
-#### Collections Table
-```sql
-CREATE TABLE collections (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    cover_image_mux_playback_id VARCHAR(255),
-    visibility VARCHAR(20) DEFAULT 'private' CHECK (visibility IN ('private', 'family', 'public')),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+### Family Invitation System
 
-CREATE TABLE collection_collaborators (
-    collection_id UUID REFERENCES collections(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(20) CHECK (role IN ('viewer', 'editor', 'admin')),
-    added_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (collection_id, user_id)
-);
+Two methods for inviting family members:
 
-CREATE INDEX idx_collections_user ON collections(user_id);
+1. **Direct Link Invitations**
+   ```
+   https://familytales.app/join/abc123def456
+   - JWT encoded with family_id, expires_at
+   - Works on web, deep links to mobile app
+   - No email required, instant join
+   ```
+
+2. **Email Invitations (via SendGrid)**
+   ```typescript
+   async inviteViaEmail(email: string, familyName: string) {
+     const inviteToken = generateInviteToken(familyId);
+     
+     await sendgrid.send({
+       to: email,
+       template: 'family-invite',
+       data: {
+         familyName,
+         inviterName,
+         joinUrl: `https://familytales.app/join/${inviteToken}`,
+         appStoreUrl: 'https://apps.apple.com/familytales',
+         playStoreUrl: 'https://play.google.com/familytales'
+       }
+     });
+   }
+   ```
+
+### Family Roles & Permissions
+
+```rust
+pub enum FamilyRole {
+    HeadOfFamily,  // Created family or transferred ownership
+    Admin,         // Can invite/remove members
+    Member,        // Can view/upload content
+}
+
+pub struct FamilyPermissions {
+    head_of_family: UserId,  // Pays subscription, ultimate authority
+    
+    // Head of Family exclusive permissions
+    can_remove_members: bool,           // true only for head
+    can_transfer_ownership: bool,       // true only for head
+    can_cancel_subscription: bool,      // true only for head
+    can_create_second_family: bool,     // Premium perk
+    
+    // Admin permissions (including head)
+    can_invite_members: bool,
+    can_manage_content: bool,
+    can_create_memory_books: bool,
+    
+    // Member permissions (everyone)
+    can_upload_content: bool,           // Everyone can scan/upload!
+    can_view_content: bool,
+    can_share_publicly: bool,
+}
 ```
 
--- Note: Family structure is defined above in the users/families tables
--- The family_members junction table handles users being in multiple families
+### Multiple Family Support
 
-#### Folders Table
-```sql
-CREATE TABLE folders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    path VARCHAR(1000) NOT NULL,
-    parent_folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
-    family_group_id UUID REFERENCES family_groups(id) ON DELETE CASCADE,
-    
-    -- Customization
-    icon VARCHAR(50),
-    color VARCHAR(7), -- Hex color
-    description TEXT,
-    
-    -- Auto-organization rules stored as JSONB
-    auto_tag_rules JSONB,
-    
-    -- Stats (can be computed but cached for performance)
-    document_count INTEGER DEFAULT 0,
-    photo_count INTEGER DEFAULT 0,
-    total_duration_minutes DECIMAL(10,2) DEFAULT 0,
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    created_by UUID REFERENCES users(id),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+Users can belong to multiple families with smart context switching:
 
--- Folder permissions
-CREATE TABLE folder_permissions (
-    folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    permission VARCHAR(20) CHECK (permission IN ('add', 'organize', 'delete')),
-    PRIMARY KEY (folder_id, user_id, permission)
-);
-
-CREATE INDEX idx_folders_path ON folders(path);
-CREATE INDEX idx_folders_family ON folders(family_group_id);
+```dart
+class FamilyContext extends StateNotifier<Family> {
+  // Auto-switch based on content being viewed
+  void autoSwitchFamily(String contentId) {
+    final family = findFamilyForContent(contentId);
+    if (family != null && family.id != state.id) {
+      state = family;
+      // Update UI to show current family context
+    }
+  }
+  
+  // Manual family switcher in app header
+  Widget familySwitcher() {
+    return DropdownButton<Family>(
+      value: currentFamily,
+      items: userFamilies.map((family) => 
+        DropdownMenuItem(
+          value: family,
+          child: Row(
+            children: [
+              if (family.isPremium) PremiumBadge(),
+              Text(family.name),
+            ],
+          ),
+        ),
+      ).toList(),
+      onChanged: (family) => switchToFamily(family),
+    );
+  }
+}
 ```
 
-#### Photos Table
-```sql
-CREATE TABLE photos (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    family_group_id UUID REFERENCES family_groups(id),
-    
-    -- Organization
-    folder_path VARCHAR(1000),
-    
-    -- Image data (Mux stores images too)
-    image_mux_asset_id VARCHAR(255) NOT NULL,
-    image_mux_playback_id VARCHAR(255) NOT NULL,
-    thumbnail_mux_playback_id VARCHAR(255),
-    width INTEGER,
-    height INTEGER,
-    format VARCHAR(10),
-    size_bytes BIGINT,
-    
-    -- Metadata
-    title VARCHAR(500),
-    description TEXT,
-    date_taken DATE,
-    location_name VARCHAR(500),
-    location_lat DECIMAL(10,8),
-    location_lng DECIMAL(11,8),
-    
-    -- AI detection results
-    detected_text TEXT,
-    scene_description TEXT,
-    
-    -- Narration (optional)
-    narration_mux_asset_id VARCHAR(255),
-    narration_mux_playback_id VARCHAR(255),
-    narration_duration_seconds DECIMAL(10,2),
-    narration_transcript TEXT,
-    narrator_id UUID REFERENCES users(id),
-    
-    -- Sharing
-    visibility VARCHAR(20) DEFAULT 'private' CHECK (visibility IN ('private', 'family', 'public')),
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+## Freemium Model Details
 
--- Photo to document links
-CREATE TABLE photo_document_links (
-    photo_id UUID REFERENCES photos(id) ON DELETE CASCADE,
-    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-    page_number INTEGER,
-    timestamp_seconds DECIMAL(10,2),
-    relationship VARCHAR(20) CHECK (relationship IN ('illustration', 'reference', 'companion')),
-    PRIMARY KEY (photo_id, document_id)
-);
+### Free Tier - "Family Memories Starter"
+**Perfect for trying out the service**
 
--- Photo tags (same structure as document tags)
-CREATE TABLE photo_tags (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    photo_id UUID REFERENCES photos(id) ON DELETE CASCADE,
-    tag_type VARCHAR(20) CHECK (tag_type IN ('people', 'topics', 'locations', 'time_periods', 'custom')),
-    tag_value VARCHAR(255),
-    confidence DECIMAL(3,2),
-    UNIQUE(photo_id, tag_type, tag_value)
-);
+- **3 document scans per month** (resets monthly)
+- **Basic voice only** (one male, one female voice)
+- **Up to 5 family members**
+- **7-day trial of premium features** on sign-up
+- **Watermark on shared content** ("Created with FamilyTales")
+- **Standard processing speed** (up to 24 hours)
+- **View-only for premium family content** (if invited to premium family)
 
--- Detected faces
-CREATE TABLE photo_faces (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    photo_id UUID REFERENCES photos(id) ON DELETE CASCADE,
-    person_name VARCHAR(255),
-    confidence DECIMAL(3,2),
-    bbox_x INTEGER,
-    bbox_y INTEGER,
-    bbox_width INTEGER,
-    bbox_height INTEGER
-);
+### Family Plan - $14.99/month
+**The sweet spot for most families**
 
-CREATE INDEX idx_photos_user ON photos(user_id);
-CREATE INDEX idx_photos_family ON photos(family_group_id);
-CREATE INDEX idx_photos_folder ON photos(folder_path);
+- **Unlimited document scans**
+- **Premium voices** (10+ options including accents)
+- **Unlimited family members**
+- **Instant processing** (under 5 minutes)
+- **No watermarks**
+- **Public sharing** (social media friendly)
+- **Offline downloads**
+- **Priority support**
+- **Memory Book templates**
+
+### Family Legacy - $29.99/month
+**For serious family historians**
+
+Everything in Family Plan plus:
+- **Two family groups** (e.g., both sides of the family)
+- **Voice cloning** (preserve Dad's actual voice)
+- **Bulk upload mode** (process entire boxes)
+- **API access** for developers
+- **White-label sharing** (your-family.familytales.app)
+- **Phone support**
+- **Print-on-demand credits** ($10/month)
+- **Early access features**
+
+### Smart Freemium Conversion Tactics
+
+1. **Emotional Triggers**
+   - After 3rd scan: "You've preserved 3 memories! Upgrade to preserve them all."
+   - Voice preview: "Hear Grandma's letter in a premium voice" (30-second preview)
+
+2. **Family Viral Loop**
+   - Free users can join premium families and access all content
+   - They see "Shared by [Premium Family Name]" encouraging upgrade
+   - "Your Smith family has premium, but your Jones family doesn't"
+
+3. **Seasonal Campaigns**
+   - Mother's Day: "Give Mom unlimited memories"
+   - Christmas: "Gift a year of family memories"
+   - Grandparents Day: Free premium weekend
+
+## Voice Generation Strategy
+
+### Text-to-Speech Options
+
+**For MVP (Third-party services):**
+
+1. **Google Cloud Text-to-Speech**
+   - Cost: ~$16 per 1M characters
+   - Quality: Excellent, WaveNet voices
+   - Voices: 380+ voices in 50+ languages
+   - Neural voices sound very natural
+
+2. **Amazon Polly**
+   - Cost: ~$4 per 1M characters (standard), $16 (neural)
+   - Quality: Good to excellent
+   - Voices: 60+ voices
+   - Real-time streaming capability
+
+3. **ElevenLabs** (Premium option)
+   - Cost: ~$99/month for 500k characters
+   - Quality: State-of-the-art, most natural
+   - Voice cloning capability
+   - Perfect for Family Legacy tier
+
+**Implementation Strategy:**
+```rust
+pub struct VoiceProcessor {
+    // Generate once, store multiple versions
+    pub async fn generate_audio(&self, text: &str, book_settings: &BookSettings) -> Result<AudioAsset> {
+        // For free tier: Generate with basic voice only
+        if book_settings.tier == Tier::Free {
+            return self.generate_single_voice(text, Voice::BasicFemale).await;
+        }
+        
+        // For premium: Generate with selected voice
+        // We do NOT store multiple versions - user selects voice during book creation
+        let voice = book_settings.selected_voice;
+        let audio = self.generate_single_voice(text, voice).await?;
+        
+        // Upload to Mux once
+        let mux_asset = self.mux_client.upload_audio(audio).await?;
+        
+        Ok(AudioAsset {
+            mux_playback_id: mux_asset.playback_id,
+            voice_used: voice,
+            duration: audio.duration,
+        })
+    }
+}
 ```
 
-### Local SQLite Schema
+### Voice Selection UX
 
-```sql
--- Offline document cache
-CREATE TABLE documents (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  type TEXT NOT NULL,
-  status TEXT NOT NULL,
-  text TEXT,
-  audio_path TEXT,
-  metadata JSON,
-  sync_status TEXT DEFAULT 'pending',
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
-
--- Offline queue for sync
-CREATE TABLE sync_queue (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  operation TEXT NOT NULL, -- 'create', 'update', 'delete'
-  resource_type TEXT NOT NULL, -- 'document', 'collection', etc
-  resource_id TEXT NOT NULL,
-  payload JSON,
-  retry_count INTEGER DEFAULT 0,
-  created_at INTEGER NOT NULL
-);
-
--- Recent playback history
-CREATE TABLE playback_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  document_id TEXT NOT NULL,
-  position_seconds REAL NOT NULL,
-  completed BOOLEAN DEFAULT FALSE,
-  last_played_at INTEGER NOT NULL
-);
+```dart
+// During Memory Book creation
+class VoiceSelectionScreen extends StatelessWidget {
+  Widget build(context) {
+    return Column(
+      children: [
+        Text("Choose a narrator voice for '${book.title}'"),
+        
+        // Preview with actual content
+        for (voice in availableVoices)
+          ListTile(
+            title: Text(voice.name),
+            subtitle: Text(voice.description), // "Warm grandmother", "Gentle male"
+            trailing: PlayButton(
+              onTap: () => previewVoice(
+                voice: voice,
+                text: book.segments.first.text.substring(0, 100) // First 100 chars
+              ),
+            ),
+            onTap: () => selectVoice(voice),
+          ),
+      ],
+    );
+  }
+}
 ```
+
+### Storage Efficiency
+
+- **One audio file per thread** (not per voice)
+- **Voice selection locked** at thread creation
+- **Change voice = regenerate thread** (premium only)
+- **No multi-voice storage** (saves 90% storage costs)
+
+## Future Feature: Interactive Family Tree
+
+### Vision
+An interactive family tree that connects faces, voices, and stories - helping younger generations understand their heritage visually and emotionally.
+
+```typescript
+interface FamilyTreeNode {
+  id: string;
+  name: string;
+  birthYear?: number;
+  deathYear?: number;
+  profilePhotoUrl?: string;
+  relationshipType: 'parent' | 'child' | 'spouse' | 'sibling';
+  
+  // Content connections
+  memoryBooks: MemoryBookRef[];
+  documentsWritten: DocumentRef[];
+  documentsMentioned: DocumentRef[];
+  photosAppearing: PhotoRef[];
+  voiceSample?: AudioRef;  // For voice cloning later
+}
+
+interface FamilyTreeView {
+  // Visual representation
+  layout: 'traditional' | 'circular' | 'timeline';
+  
+  // Interactive features
+  onNodeClick: (person: FamilyTreeNode) => {
+    showPersonOverlay({
+      photos: getPhotosOfPerson(person),
+      letters: getLettersFrom(person),
+      mentions: getDocumentsMentioning(person),
+      audio: getAudioNarrationBy(person)
+    });
+  };
+  
+  // Storytelling integration
+  playFamilyStory: () => {
+    // Chronological audio journey through the tree
+    const timeline = generateFamilyTimeline();
+    playAudioJourney(timeline);
+  };
+}
+```
+
+### Smart Connections
+
+```rust
+pub struct FamilyTreeBuilder {
+    // Auto-detect relationships from document content
+    pub fn extract_relationships(&self, segments: &[ContentSegment]) -> Vec<Relationship> {
+        let mut relationships = Vec::new();
+        
+        for segment in segments {
+            // Natural language processing to find relationships
+            let mentions = self.nlp.extract_family_mentions(&segment.ocr_text);
+            
+            for mention in mentions {
+                relationships.push(Relationship {
+                    from_person: segment.author,
+                    to_person: mention.person_name,
+                    relationship_type: mention.detected_relation, // "my daughter", "dear mother"
+                    confidence: mention.confidence,
+                    source_document_id: segment.id,
+                });
+            }
+        }
+        
+        relationships
+    }
+}
+```
+
+### Integration with Memory Books
+
+1. **Person-Centric Views**
+   - Click on Grandma in the tree → See all her letters, recipes, photos
+   - Timeline view of her life through documents
+   - Audio compilation of mentions across family documents
+
+2. **Generational Stories**
+   - "The Women of Our Family" - matrilineal audio journey
+   - "Father to Son Letters" - paternal wisdom through generations
+   - "Sibling Stories" - lateral family connections
+
+3. **Educational Features for Youth**
+   ```dart
+   class FamilyTreeForKids extends StatelessWidget {
+     Widget buildPersonCard(FamilyTreeNode person) {
+       return InteractiveCard(
+         child: Column(
+           children: [
+             CircleAvatar(
+               backgroundImage: NetworkImage(person.profilePhotoUrl),
+               radius: 60,
+             ),
+             Text(person.name, style: kidFriendlyFont),
+             Text(_getRelationshipText(person)), // "Your Great-Grandma"
+             
+             PlayButton(
+               label: "Hear their story",
+               onPressed: () => playPersonAudio(person),
+             ),
+             
+             if (person.documentsWritten.isNotEmpty)
+               TextButton(
+                 child: Text("Read their letters"),
+                 onPressed: () => showDocuments(person.documentsWritten),
+               ),
+           ],
+         ),
+       );
+     }
+   }
+   ```
+
+### Future AI Enhancements
+
+- **Face Recognition**: Auto-tag people in photos to build tree
+- **Handwriting Matching**: Identify unsigned documents by writing style
+- **Story Generation**: AI creates connecting narratives between family members
+- **Missing Links**: Suggest questions to ask living relatives
 
 ## Security & Privacy Considerations
 

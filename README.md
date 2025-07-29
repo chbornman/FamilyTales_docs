@@ -100,9 +100,14 @@ Based on the family-centric nature of FamilyTales, here are additional features 
 - **Annotation Layers**: Family members add context without changing originals
 
 ### 🎨 Creative Outputs
-- **Print Memory Books**: Physical books from digital Memory Books with QR codes for audio
-- **Audio Postcards**: Share snippets on social media
+- **Print Memory Books**: 
+  - Professional hardcover books with original handwriting + transcribed text
+  - QR codes on each page that launch the app and play that specific audio
+  - Perfect binding, archival paper, multiple size options
+  - Ideal for gifts, memorials, milestone celebrations
+- **Audio Postcards**: Share snippets on social media with visual cards
 - **Family Podcasts**: Curated audio stories for family reunions
+- **Memory Calendars**: Annual calendars featuring family documents and photos
 
 ### 🧬 Legacy Planning
 - **Digital Will**: Specify who inherits which memories
@@ -274,6 +279,19 @@ FamilyTales/
 - 🌟 AI-powered memory prompts
 - 🌟 Legacy planning features
 - 🎯 Target: 100,000+ users
+
+### Phase 5: Physical + Digital (Months 13-18) - "Complete Memory Ecosystem"
+- 📚 **Print-on-Demand Memory Books**
+  - Beautiful hardcover books from digital Memory Books
+  - QR codes on each page link to audio playback
+  - Professional layout with original handwriting + typed text
+  - Perfect for gifts, reunions, memorials
+- 🎁 **Memory Box Subscriptions**
+  - Quarterly printed collections
+  - USB drive with offline app + all audio
+  - Archival storage box
+- 💰 **New Revenue Stream**: $39-79 per printed book
+- 🎯 Target: 20% of families order physical products
 
 ## 📈 Success Metrics
 

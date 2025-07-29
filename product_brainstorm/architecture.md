@@ -1583,6 +1583,73 @@ serde_json = "1.0"
 - International expansion
 - Target: 100,000+ users
 
+### Phase 5: Physical Products Integration (Months 13-18)
+
+**Print-on-Demand Memory Books**:
+```rust
+pub struct PrintProduct {
+    pub memory_book_id: Uuid,
+    pub layout: BookLayout,
+    pub options: PrintOptions,
+}
+
+pub struct BookLayout {
+    pub format: BookFormat, // Hardcover, Softcover, Premium
+    pub size: BookSize,     // 8x10, 11x14, Coffee Table
+    pub pages: Vec<PageLayout>,
+}
+
+pub struct PageLayout {
+    pub document_id: Uuid,
+    pub layout_type: LayoutType,
+    pub elements: Vec<PageElement>,
+}
+
+pub enum PageElement {
+    OriginalHandwriting {
+        image_url: String,
+        position: Rectangle,
+    },
+    TranscribedText {
+        text: String,
+        font: FontStyle,
+        position: Rectangle,
+    },
+    QrCode {
+        audio_url: String,     // Deep link to specific audio
+        document_id: Uuid,
+        position: Point,
+        caption: String,       // "Tap to hear Dad read this"
+    },
+    Photo {
+        mux_playback_id: String,
+        caption: Option<String>,
+        position: Rectangle,
+    },
+}
+```
+
+**Implementation Architecture**:
+- **Print Partner Integration**: Blurb, Lulu, or custom fulfillment
+- **Dynamic QR Generation**: Each QR code deep links to app + specific audio
+- **Layout Engine**: Auto-layout with manual override options
+- **Preview System**: 3D book preview before ordering
+- **Quality Control**: High-res image requirements, text legibility checks
+
+**Business Model**:
+- Base price: $39 for 20 pages
+- Additional pages: $0.50 each
+- Premium options: Leather cover (+$40), Gift box (+$20)
+- Family discounts: 20% off 5+ copies
+- Estimated margin: 40-50%
+
+**Use Cases**:
+- Memorial books for funerals
+- Anniversary gifts
+- Family reunion souvenirs
+- Holiday presents
+- Estate planning packages
+
 ## Monitoring and Analytics
 
 ### Key Metrics

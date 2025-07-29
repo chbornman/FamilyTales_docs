@@ -297,12 +297,63 @@ FamilyTales/
     └── [Internal project documentation]
 ```
 
+## 🚦 MVP Feature Priorities
+
+### Phase 1: Core Magic (Months 1-2)
+**Must have for launch:**
+1. **📸 Document Scanning** - Photo capture with auto-enhancement
+2. **🔤 OCR Processing** - Google Vision API for text extraction
+3. **🎙️ Audio Generation** - Basic TTS voices (2 options)
+4. **👨‍👩‍👧 Family Sharing** - Simple invite system with JWT links
+5. **📱 Mobile App** - Flutter iOS/Android with basic features
+6. **💳 Payments** - Stripe integration for family subscriptions
+7. **🔐 Authentication** - Clerk for easy signup/login
+
+### Phase 2: Family Features (Month 3)
+**Core family experience:**
+8. **📚 Memory Books** - Basic collections (single thread only)
+9. **👥 Family Roles** - Head of family + members
+10. **🎵 Audio Playback** - HLS streaming via Mux
+11. **✏️ OCR Corrections** - Simple text editing
+12. **📤 Invite System** - Email invites via SendGrid
+13. **💾 Basic Storage** - 10GB per family
+
+### Phase 3: Growth Features (Month 4)
+**Viral and retention:**
+14. **🎁 Gift Subscriptions** - For Mother's Day launch
+15. **📊 Family Dashboard** - See who's listening
+16. **🔄 Multiple Families** - Support both sides
+17. **🌐 Public Sharing** - Social media cards
+18. **📱 Progressive Web App** - No app store needed
+
+### Phase 4: Premium Value (Month 5-6)
+**Conversion drivers:**
+19. **🎤 Premium Voices** - 10+ natural options
+20. **📦 Bulk Upload** - Process multiple documents
+21. **🏷️ Smart Tagging** - Auto-detect people/dates
+22. **💬 Voice Selection** - Per Memory Book choice
+23. **📥 Offline Mode** - Download for trips
+
+### Post-MVP (Months 7+)
+**Nice to have later:**
+- 🌳 Family Tree View
+- 🖨️ Print-on-Demand Books  
+- 🎙️ Voice Cloning
+- 🤖 AI Organization
+- 📷 Photo Narration
+- 🔍 Advanced Search
+- 📈 Analytics Dashboard
+- 🌍 Multi-language Support
+- 🔗 API Access
+- 🏢 White-label Options
+
 ## 🚦 Current Status
 
 - ✅ Market research completed
 - ✅ Business model validated
 - ✅ Technical architecture designed
 - ✅ Marketing strategy developed
+- ✅ User stories defined
 - 🔄 Seeking seed funding
 - ⏳ MVP development (Q1 2025)
 

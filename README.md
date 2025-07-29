@@ -441,7 +441,7 @@ FamilyTales/
 
 ## 📚 Documentation
 
-**📖 [View Complete Technical Documentation](https://chbornman.github.io/FamilyTales/)**
+**📖 [View Complete Technical Documentation](https://chbornman.github.io/FamilyTales_docs/)**
 
 Our comprehensive documentation includes:
 - 🎨 **Design System**: Brand guide, UI components, and audio UX
@@ -455,7 +455,7 @@ Our comprehensive documentation includes:
 For investment inquiries, partnership opportunities, or more information:
 - Email: info@familytales.app
 - Website: www.familytales.app (coming soon)
-- 📖 Documentation: https://chbornman.github.io/FamilyTales/
+- 📖 Documentation: https://chbornman.github.io/FamilyTales_docs/
 
 ---
 

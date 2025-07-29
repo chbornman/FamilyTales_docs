@@ -1,446 +1,529 @@
-# FamilyTales Development Sprints
+# FamilyTales MVP Development Sprints
 
-## Overview
-6-month sprint-based development plan for FamilyTales MVP, designed for a team of 4-6 engineers. Each sprint is 2 weeks long with specific deliverables and success criteria.
+This document provides detailed, AI-agent-friendly sprint planning for the FamilyTales MVP. Each task includes specific file references, dependencies, and technical requirements.
 
----
+## MVP Scope Reference
 
-## Team Structure
+**Read First**: [`docs/MVP_REQUIREMENTS.md`](docs/MVP_REQUIREMENTS.md) - Complete MVP scope and boundaries
 
-### Core Team (4-6 people)
-- **Tech Lead** (full-stack, 1 person)
-- **Backend Engineers** (Rust/Axum, 2 people)
-- **Frontend Engineer** (Flutter, 1 person)
-- **DevOps Engineer** (part-time, 0.5 person)
-- **QA Engineer** (part-time, 0.5 person)
-
----
-
-## Sprint Planning
-
-### Pre-Sprint 0: Foundation Setup (Week -2 to 0)
-**Goal: Development environment and infrastructure**
-
-#### Backend Team
-- [ ] Set up development environment (Rust, PostgreSQL, Redis)
-- [ ] Initialize Axum project with basic structure
-- [ ] Set up database with sqlx migrations
-- [ ] Configure Clerk authentication integration
-- [ ] Set up basic Docker compose for local development
-
-#### Frontend Team
-- [ ] Set up Flutter project with folder structure
-- [ ] Configure Clerk Flutter SDK
-- [ ] Set up Riverpod state management
-- [ ] Configure go_router navigation
-- [ ] Set up basic design system components
-
-#### DevOps Team
-- [ ] Set up GitHub repository with branch protection
-- [ ] Configure CI/CD pipeline basics
-- [ ] Set up staging environment
-- [ ] Configure monitoring (basic Prometheus setup)
-
-**Sprint Success Criteria:**
-- ✅ All developers can run the app locally
-- ✅ Basic authentication works end-to-end
-- ✅ CI pipeline runs tests and builds successfully
+**Key MVP Constraints**:
+- 12-week development timeline
+- Single family per user (no multi-family)
+- Single TTS voice option
+- Basic Memory Books (no multi-threading)
+- Flutter multi-platform from day one
+- Payment system with 2-week free trial
+- Simple deployment (Docker Compose, not Kubernetes)
 
 ---
 
-## Phase 1: Core Magic (Months 1-2)
+## Team Structure & File Ownership
 
-### Sprint 1: Authentication & User Management (Weeks 1-2)
-**Goal: Users can sign up, log in, and manage basic profiles**
+### Backend Team (Rust/Axum)
+**Primary Files**: `backend/src/`, `migrations/`, `docker-compose.yml`
+**Key Documents**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/specs/DATABASE_SCHEMA.md`](docs/specs/DATABASE_SCHEMA.md)
 
-#### Backend Team
-- [ ] Implement Clerk webhook handlers
-- [ ] Create user management endpoints
-- [ ] Set up JWT middleware for API protection
-- [ ] Create family management basic CRUD
-- [ ] Write unit tests for auth flows
+### Frontend Team (Flutter)
+**Primary Files**: `mobile/lib/`, `mobile/test/`
+**Key Documents**: [`docs/specs/FRONTEND_ARCHITECTURE.md`](docs/specs/FRONTEND_ARCHITECTURE.md), [`docs/design/UI_COMPONENTS.md`](docs/design/UI_COMPONENTS.md)
 
-#### Frontend Team
-- [ ] Implement sign-up/sign-in screens with Clerk
-- [ ] Create user profile screens
-- [ ] Implement family creation flow
-- [ ] Add family member invitation UI (basic)
-- [ ] Write widget tests for auth components
-
-#### Success Criteria:
-- ✅ Users can create accounts via Clerk
-- ✅ Family creation and basic member management works
-- ✅ JWT tokens authenticate API requests
-- ✅ 95% test coverage for auth components
-- ✅ All auth flows work on iOS and Android
-
-### Sprint 2: Document Scanning & OCR (Weeks 3-4)
-**Goal: Users can photograph documents and get text extraction**
-
-#### Backend Team
-- [ ] Implement Google Vision API integration
-- [ ] Create document upload endpoints with Mux
-- [ ] Build OCR processing pipeline
-- [ ] Create job queue system with RabbitMQ
-- [ ] Implement OCR confidence scoring
-
-#### Frontend Team
-- [ ] Build camera capture UI with preview
-- [ ] Implement image enhancement (crop, rotate, filters)
-- [ ] Create document upload flow with progress
-- [ ] Build OCR results display with confidence indicators
-- [ ] Add manual text correction interface
-
-#### Success Criteria:
-- ✅ Camera captures and enhances document photos
-- ✅ OCR extracts text with >85% accuracy on clear handwriting
-- ✅ Users can upload and see processed results
-- ✅ OCR processing completes within 30 seconds
-- ✅ Manual correction interface is intuitive
-
-### Sprint 3: Audio Generation (Weeks 5-6)
-**Goal: Convert extracted text to natural-sounding audio**
-
-#### Backend Team
-- [ ] Integrate Google Cloud Text-to-Speech
-- [ ] Build audio processing pipeline
-- [ ] Implement voice selection system
-- [ ] Create audio normalization
-- [ ] Add Mux audio upload integration
-
-#### Frontend Team
-- [ ] Build voice selection interface
-- [ ] Create audio player with waveform
-- [ ] Add playback controls (play, pause, seek)
-- [ ] Implement audio preview during generation
-- [ ] Add download functionality
-
-#### Success Criteria:
-- ✅ Text converts to natural audio in <60 seconds
-- ✅ Audio player works smoothly on all platforms
-- ✅ Users can select from 2+ voice options
-- ✅ Audio quality is consistently good (normalized)
-- ✅ Waveform visualization is responsive
-
-### Sprint 4: Family Sharing Foundation (Weeks 7-8)
-**Goal: Family members can invite others and share content**
-
-#### Backend Team
-- [ ] Implement family invitation system
-- [ ] Create JWT-based invite links
-- [ ] Build family member role management
-- [ ] Add content sharing permissions
-- [ ] Implement email notifications via SendGrid
-
-#### Frontend Team
-- [ ] Build family invitation flow (email + link)
-- [ ] Create family member management screen
-- [ ] Implement invitation acceptance flow
-- [ ] Add shared content discovery
-- [ ] Build notification system
-
-#### Success Criteria:
-- ✅ Family invitations work via email and direct links
-- ✅ New members can join and access shared content
-- ✅ Role-based permissions function correctly
-- ✅ Invitation flow has <30 second completion time
-- ✅ Email templates are beautiful and functional
+### DevOps Team (Part-time)
+**Primary Files**: `docker/`, `.github/workflows/`, `scripts/`
+**Key Documents**: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md), [`docs/SETUP.md`](docs/SETUP.md)
 
 ---
 
-## Phase 2: Family Features (Month 3)
+## Pre-Sprint: Foundation (Week -2 to 0)
 
-### Sprint 5: Memory Books (Weeks 9-10)
-**Goal: Users can organize documents into themed collections**
+### Backend Foundation
+**Goal**: Basic Rust server with database and authentication
 
-#### Backend Team
-- [ ] Implement Memory Book CRUD operations
-- [ ] Create basic thread system (single thread per book)
-- [ ] Build content organization endpoints
-- [ ] Add search functionality
-- [ ] Implement sharing controls
+**Tasks**:
+1. **Initialize Rust Project**
+   - **Files to create**: `backend/Cargo.toml`, `backend/src/main.rs`, `backend/src/lib.rs`
+   - **Reference docs**: [`docs/SETUP.md`](docs/SETUP.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+   - **Dependencies**: axum, tokio, sqlx, serde, tracing
+   - **Success criteria**: `cargo run` starts server on port 8080
 
-#### Frontend Team
-- [ ] Design Memory Book creation UI
-- [ ] Build book organization interface
-- [ ] Create content management screens
-- [ ] Implement search interface
-- [ ] Add book sharing functionality
+2. **Database Setup**
+   - **Files to create**: `migrations/001_initial_schema.sql`, `backend/src/db/mod.rs`
+   - **Reference docs**: [`docs/specs/DATABASE_SCHEMA.md`](docs/specs/DATABASE_SCHEMA.md)
+   - **Dependencies**: PostgreSQL running, sqlx-cli installed
+   - **Success criteria**: `sqlx migrate run` creates all tables
 
-#### Success Criteria:
-- ✅ Users can create and organize Memory Books
-- ✅ Content can be added and reordered
-- ✅ Search finds content across books
-- ✅ Sharing controls work properly
-- ✅ UI is intuitive for elderly users
+3. **Clerk Authentication**
+   - **Files to create**: `backend/src/auth/mod.rs`, `backend/src/auth/clerk.rs`
+   - **Reference docs**: [`docs/specs/AUTHENTICATION.md`](docs/specs/AUTHENTICATION.md)
+   - **Environment vars**: `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`
+   - **Success criteria**: JWT validation middleware protects routes
 
-### Sprint 6: Enhanced Audio Experience (Weeks 11-12)
-**Goal: Three-view system and enhanced audio playback**
+### Frontend Foundation
+**Goal**: Flutter app shell with authentication and navigation
 
-#### Backend Team
-- [ ] Implement content segment endpoints
-- [ ] Add timestamp generation for navigation
-- [ ] Create synchronized playback API
-- [ ] Build audio streaming optimization
-- [ ] Add playback analytics
+**Tasks**:
+1. **Flutter Project Setup**
+   - **Files to create**: `mobile/pubspec.yaml`, `mobile/lib/main.dart`
+   - **Reference docs**: [`docs/specs/FRONTEND_ARCHITECTURE.md`](docs/specs/FRONTEND_ARCHITECTURE.md)
+   - **Dependencies**: riverpod, go_router, clerk_flutter, http
+   - **Success criteria**: App launches on iOS, Android, and web
 
-#### Frontend Team
-- [ ] Build three-view system (Original, Text, Audio)
-- [ ] Implement synchronized highlighting
-- [ ] Create chapter/section navigation
-- [ ] Add playback speed controls
-- [ ] Build offline audio caching
+2. **Authentication Screens**
+   - **Files to create**: `mobile/lib/screens/auth/`, `mobile/lib/services/auth_service.dart`
+   - **Reference docs**: [`docs/specs/AUTHENTICATION.md`](docs/specs/AUTHENTICATION.md), [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md)
+   - **Success criteria**: Sign up and login flows work with Clerk
 
-#### Success Criteria:
-- ✅ Three views synchronize perfectly
-- ✅ Users can jump to specific content sections
-- ✅ Text highlights follow audio playback
-- ✅ Offline playback works reliably
-- ✅ Interface is smooth on older devices
+3. **Navigation Structure**
+   - **Files to create**: `mobile/lib/router/app_router.dart`, `mobile/lib/screens/home/`
+   - **Reference docs**: [`docs/specs/FRONTEND_ARCHITECTURE.md`](docs/specs/FRONTEND_ARCHITECTURE.md)
+   - **Success criteria**: Route protection and navigation works
 
----
-
-## Phase 3: Growth Features (Month 4)
-
-### Sprint 7: Payment Integration (Weeks 13-14)
-**Goal: Family subscription system with Stripe**
-
-#### Backend Team
-- [ ] Integrate Stripe for subscriptions
-- [ ] Implement family-based billing
-- [ ] Create usage tracking system
-- [ ] Build payment webhooks
-- [ ] Add subscription management endpoints
-
-#### Frontend Team
-- [ ] Build pricing and subscription screens
-- [ ] Implement payment flow with Stripe
-- [ ] Create subscription management UI
-- [ ] Add usage tracking displays
-- [ ] Build payment method management
-
-#### Success Criteria:
-- ✅ Family subscriptions work end-to-end
-- ✅ Payment processing is secure and reliable
-- ✅ Usage limits are enforced correctly
-- ✅ Subscription management is user-friendly
-- ✅ Payment webhooks handle all scenarios
-
-### Sprint 8: Multi-Family & Advanced Features (Weeks 15-16)
-**Goal: Support for multiple families and growth features**
-
-#### Backend Team
-- [ ] Implement multi-family support
-- [ ] Create family context switching
-- [ ] Build gift subscription system
-- [ ] Add advanced sharing features
-- [ ] Implement family dashboard analytics
-
-#### Frontend Team
-- [ ] Build family switcher interface
-- [ ] Create family dashboard
-- [ ] Implement gift subscription flow
-- [ ] Add social sharing features
-- [ ] Build analytics displays
-
-#### Success Criteria:
-- ✅ Users can belong to multiple families
-- ✅ Context switching works seamlessly
-- ✅ Gift subscriptions are easy to purchase
-- ✅ Social sharing drives user acquisition
-- ✅ Family dashboards provide valuable insights
+**Sprint Success Criteria**:
+- [ ] Backend server responds to authenticated requests
+- [ ] Flutter app authenticates with Clerk successfully  
+- [ ] Docker Compose runs full local environment
+- [ ] CI pipeline builds and tests both backend and frontend
 
 ---
 
-## Phase 4: Polish & Optimization (Months 5-6)
+## Sprint 1: Core Authentication & Family Setup (Weeks 1-2)
 
-### Sprint 9: Performance & Reliability (Weeks 17-18)
-**Goal: Production-ready performance and reliability**
+### Backend Tasks
 
-#### Backend Team
-- [ ] Optimize database queries
-- [ ] Implement caching strategies
-- [ ] Add comprehensive error handling
-- [ ] Build health check endpoints
-- [ ] Implement rate limiting
+**Task 1.1: User Management API**
+- **Files to create**: `backend/src/api/users.rs`, `backend/src/models/user.rs`
+- **Reference docs**: [`docs/specs/API.md`](docs/specs/API.md) (User endpoints section)
+- **Database dependencies**: Users table from `migrations/001_initial_schema.sql`
+- **API endpoints**: `GET /api/users/me`, `PUT /api/users/me`
+- **Testing**: Unit tests in `backend/tests/api/users.rs`
+- **Success criteria**: User profile CRUD operations work
 
-#### Frontend Team
-- [ ] Optimize app performance
-- [ ] Implement offline-first features
-- [ ] Add comprehensive error states
-- [ ] Build retry mechanisms
-- [ ] Add accessibility improvements
+**Task 1.2: Family Management API**
+- **Files to create**: `backend/src/api/families.rs`, `backend/src/models/family.rs`
+- **Reference docs**: [`docs/specs/API.md`](docs/specs/API.md) (Family endpoints section)
+- **Database dependencies**: Families, family_members tables
+- **API endpoints**: `POST /api/families`, `GET /api/families`, `POST /api/families/{id}/members`
+- **Business logic**: Family Owner role assignment, member limits (20 max for MVP)
+- **Success criteria**: Family creation and basic member management
 
-#### Success Criteria:
-- ✅ API response times <200ms for 95th percentile
-- ✅ App works reliably offline
-- ✅ Error handling is comprehensive and user-friendly
-- ✅ WCAG AAA accessibility compliance
-- ✅ Battery usage is optimized
+**Task 1.3: Webhook Handlers**
+- **Files to create**: `backend/src/webhooks/clerk.rs`
+- **Reference docs**: [`docs/specs/AUTHENTICATION.md`](docs/specs/AUTHENTICATION.md) (Webhooks section)
+- **Webhook endpoints**: `POST /webhooks/clerk`
+- **Events to handle**: `user.created`, `user.updated`, `user.deleted`
+- **Success criteria**: User creation in our DB syncs with Clerk
 
-### Sprint 10: Advanced Audio Features (Weeks 19-20)
-**Goal: Premium audio features for differentiation**
+### Frontend Tasks
 
-#### Backend Team
-- [ ] Implement bulk upload processing
-- [ ] Add premium voice options
-- [ ] Build audio enhancement pipeline
-- [ ] Create advanced organization features
-- [ ] Add content tagging system
+**Task 1.4: Family Creation Flow**
+- **Files to create**: `mobile/lib/screens/onboarding/`, `mobile/lib/widgets/family_form.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (New User Onboarding section)
+- **State management**: Family creation provider with Riverpod
+- **Validation**: Family name required, 3-50 characters
+- **Success criteria**: New users can create families and become owners
 
-#### Frontend Team
-- [ ] Build bulk upload interface
-- [ ] Implement premium voice selection
-- [ ] Create advanced organization tools
-- [ ] Add smart tagging features
-- [ ] Build content discovery features
+**Task 1.5: Family Invitation System**
+- **Files to create**: `mobile/lib/screens/family/invite_screen.dart`, `mobile/lib/services/family_service.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Family Invitation Flow section)
+- **Email integration**: Template for invitation emails
+- **Role selection**: Member vs Viewer role assignment
+- **Success criteria**: Email invitations sent and accepted successfully
 
-#### Success Criteria:
-- ✅ Bulk upload handles 50+ documents efficiently
-- ✅ Premium voices provide clear value
-- ✅ Organization tools reduce manual work
-- ✅ Content discovery helps user engagement
-- ✅ Features drive subscription upgrades
+**Task 1.6: Profile Management**
+- **Files to create**: `mobile/lib/screens/profile/`, `mobile/lib/widgets/profile_avatar.dart`
+- **Reference docs**: [`docs/design/UI_COMPONENTS.md`](docs/design/UI_COMPONENTS.md) (Profile components)
+- **Image handling**: Profile photo upload and display
+- **Form validation**: Name, email validation
+- **Success criteria**: Users can update profiles and photos
 
-### Sprint 11: Production Deployment (Weeks 21-22)
-**Goal: Deploy to production with monitoring**
-
-#### DevOps Team (Full-time this sprint)
-- [ ] Set up production infrastructure
-- [ ] Deploy to Kubernetes cluster
-- [ ] Configure monitoring and alerting
-- [ ] Set up log aggregation
-- [ ] Implement backup systems
-
-#### All Teams
-- [ ] Production testing and validation
-- [ ] Security audit and fixes
-- [ ] Performance testing under load
-- [ ] Documentation completion
-- [ ] Launch preparation
-
-#### Success Criteria:
-- ✅ Production environment is stable
-- ✅ Monitoring covers all critical paths
-- ✅ Security audit passes
-- ✅ Load testing validates capacity
-- ✅ Launch runbook is complete
-
-### Sprint 12: Launch & Iteration (Weeks 23-24)
-**Goal: Launch MVP and begin iteration based on feedback**
-
-#### All Teams
-- [ ] Execute launch plan
-- [ ] Monitor launch metrics
-- [ ] Respond to user feedback
-- [ ] Fix critical issues quickly
-- [ ] Plan next iteration
-
-#### Success Criteria:
-- ✅ Successful public launch
-- ✅ No critical issues in first week
-- ✅ User feedback is positive
-- ✅ Next iteration is planned
-- ✅ Team is prepared for scale
+**Sprint 1 Success Criteria**:
+- [ ] Users create accounts and families successfully
+- [ ] Family invitations work via email
+- [ ] Role-based permissions function (Owner vs Member vs Viewer)
+- [ ] Profile management is functional
+- [ ] 90%+ test coverage for authentication flows
 
 ---
 
-## Sprint Ceremonies
+## Sprint 2: Story Upload & OCR Pipeline (Weeks 3-4)
 
-### Daily (15 minutes)
-- Stand-up meetings with blockers and progress
-- Cross-team coordination as needed
+### Backend Tasks
 
-### Bi-weekly (Sprint boundaries)
-- **Sprint Planning** (4 hours): Define sprint goals and tasks
-- **Sprint Review** (2 hours): Demo completed features
-- **Sprint Retrospective** (1 hour): Process improvement
+**Task 2.1: File Upload API**
+- **Files to create**: `backend/src/api/upload.rs`, `backend/src/services/storage.rs`
+- **Reference docs**: [`docs/specs/API.md`](docs/specs/API.md) (Upload endpoints)
+- **Storage integration**: S3-compatible storage for document images
+- **File validation**: Max 10MB, supported formats (JPEG, PNG, PDF)
+- **API endpoint**: `POST /api/upload` with multipart form data
+- **Success criteria**: Upload 5 photos simultaneously, return signed URLs
 
-### Weekly
-- **Tech sync** (1 hour): Architecture decisions and technical alignment
-- **Design review** (1 hour): UI/UX review and approval
+**Task 2.2: OCR Processing Service**
+- **Files to create**: `backend/src/services/ocr.rs`, `backend/src/jobs/ocr_job.rs`
+- **Reference docs**: [`docs/specs/AUDIO_PROCESSING.md`](docs/specs/AUDIO_PROCESSING.md) (OCR section)
+- **Google Vision integration**: Document text detection API
+- **Queue system**: RabbitMQ for async processing
+- **Confidence scoring**: Return OCR confidence levels
+- **Success criteria**: Extract text from handwritten and printed documents
 
----
+**Task 2.3: Story Management API**
+- **Files to create**: `backend/src/api/stories.rs`, `backend/src/models/story.rs`
+- **Reference docs**: [`docs/specs/DATABASE_SCHEMA.md`](docs/specs/DATABASE_SCHEMA.md) (Stories table)
+- **Database schema**: Stories, story_pages tables
+- **API endpoints**: `POST /api/stories`, `GET /api/stories`, `PUT /api/stories/{id}`
+- **State management**: Draft → Processing → Ready → Published states
+- **Success criteria**: Complete story lifecycle management
 
-## Definition of Done
+### Frontend Tasks
 
-### For Each User Story:
-- [ ] Code is implemented and reviewed
-- [ ] Unit tests are written and passing
-- [ ] Integration tests cover the feature
-- [ ] UI is responsive on all target devices
-- [ ] Accessibility requirements are met
-- [ ] Performance requirements are met
-- [ ] Documentation is updated
-- [ ] Feature is deployed to staging
-- [ ] QA testing is completed
-- [ ] Product owner has accepted the feature
+**Task 2.4: Camera & Photo Picker**
+- **Files to create**: `mobile/lib/screens/camera/`, `mobile/lib/widgets/photo_picker.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Story Creation Flow section)
+- **Camera integration**: Native camera with preview and basic editing
+- **Gallery access**: Multi-select from photo gallery
+- **Image enhancement**: Basic crop, rotate, brightness adjustment
+- **Success criteria**: Capture or select up to 5 photos per story
 
-### For Each Sprint:
-- [ ] All planned stories meet Definition of Done
-- [ ] Sprint goals are achieved
-- [ ] No critical bugs remain unfixed
-- [ ] Documentation is updated
-- [ ] Deployment to staging is successful
-- [ ] Performance benchmarks are met
+**Task 2.5: Story Creation Wizard**
+- **Files to create**: `mobile/lib/screens/story/create_story_screen.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Story Creation Flow section)
+- **Step-by-step flow**: Title → Photos → Processing → Review
+- **Progress tracking**: Clear progress indicators for each step
+- **Draft saving**: Auto-save at each step
+- **Success criteria**: Intuitive story creation process
 
----
+**Task 2.6: OCR Results & Editing**
+- **Files to create**: `mobile/lib/screens/story/ocr_editor_screen.dart`
+- **Reference docs**: [`docs/design/UI_COMPONENTS.md`](docs/design/UI_COMPONENTS.md) (Text editor)
+- **Text editor**: Side-by-side original image and extracted text
+- **Confidence indicators**: Highlight low-confidence text
+- **Page navigation**: If multiple photos, paginated editing
+- **Success criteria**: Users can review and correct OCR text easily
 
-## Risk Mitigation
-
-### Technical Risks
-- **OCR Accuracy Issues**: Plan for manual review queue and correction workflows
-- **Audio Quality Problems**: Have backup TTS providers and quality metrics
-- **Performance at Scale**: Load testing and performance monitoring from Sprint 1
-- **Integration Failures**: Comprehensive integration tests and health checks
-
-### Process Risks
-- **Scope Creep**: Strict sprint planning and change control
-- **Team Availability**: Cross-training and documentation
-- **Third-party Dependencies**: Backup plans for Clerk, Stripe, Mux
-- **User Feedback**: Regular user testing and feedback collection
-
-### Market Risks
-- **Competition**: Focus on unique family-first features
-- **User Adoption**: Early user testing and referral programs
-- **Market Timing**: Flexible launch timing based on readiness
-
----
-
-## Success Metrics by Sprint
-
-### Technical Metrics
-- **Code Quality**: >90% test coverage, <5 critical code smells
-- **Performance**: <200ms API response time, <3s app startup time
-- **Reliability**: >99.9% uptime, <1% error rate
-- **Security**: Zero critical vulnerabilities, OWASP compliance
-
-### Product Metrics
-- **User Experience**: >4.5 app store rating, <10% churn rate
-- **Engagement**: >60% weekly active users, >5 documents per user
-- **Growth**: >15% monthly user growth, >30% referral rate
-- **Revenue**: 10% free-to-paid conversion, <5% payment failures
-
-### Team Metrics
-- **Velocity**: Consistent story point completion
-- **Quality**: <3 bugs per story, <24h bug resolution
-- **Morale**: Regular team satisfaction surveys
-- **Knowledge**: Cross-training and documentation quality
+**Sprint 2 Success Criteria**:
+- [ ] Photo upload and storage works reliably
+- [ ] OCR processes documents within 30 seconds
+- [ ] Text extraction accuracy >80% on clear handwriting
+- [ ] Users can edit OCR results intuitively
+- [ ] Story drafts save and resume correctly
 
 ---
 
-## Post-MVP Roadmap
+## Sprint 3: Audio Generation & Playback (Weeks 5-6)
 
-### Month 7-9: Advanced Features
-- Voice cloning for Legacy tier
-- Advanced family tree integration
-- Print-on-demand memory books
-- Enhanced search and organization
+### Backend Tasks
 
-### Month 10-12: Scale & Expand
-- International expansion
-- API for third-party integrations
-- Enterprise features
-- Advanced analytics
+**Task 3.1: Text-to-Speech Integration**
+- **Files to create**: `backend/src/services/tts.rs`, `backend/src/jobs/audio_job.rs`
+- **Reference docs**: [`docs/specs/AUDIO_PROCESSING.md`](docs/specs/AUDIO_PROCESSING.md) (TTS section)
+- **Google Cloud TTS**: Single voice selection for MVP (Neural2 voice)
+- **Audio processing**: Normalize volume, add pauses for punctuation
+- **Mux integration**: Upload generated audio to Mux for streaming
+- **Success criteria**: Generate natural-sounding audio in <60 seconds
 
-This sprint plan provides a structured path to launch while maintaining flexibility for iteration based on user feedback and market conditions.
+**Task 3.2: Audio Streaming API**
+- **Files to create**: `backend/src/api/audio.rs`, `backend/src/services/mux.rs`
+- **Reference docs**: [`docs/specs/API.md`](docs/specs/API.md) (Audio endpoints)
+- **Mux integration**: HLS streaming for cross-platform compatibility
+- **API endpoints**: `GET /api/stories/{id}/audio`, `GET /api/stories/{id}/stream`
+- **Playback URLs**: Secure, time-limited streaming URLs
+- **Success criteria**: Audio streams reliably on all platforms
+
+**Task 3.3: Job Queue Management**
+- **Files to create**: `backend/src/jobs/mod.rs`, `backend/src/jobs/queue.rs`
+- **Reference docs**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (Job processing section)
+- **RabbitMQ integration**: Async job processing for OCR and TTS
+- **Job status tracking**: Real-time updates via WebSocket
+- **Error handling**: Retry logic and dead letter queues
+- **Success criteria**: Reliable background processing with status updates
+
+### Frontend Tasks
+
+**Task 3.4: Audio Player Component**
+- **Files to create**: `mobile/lib/widgets/audio_player.dart`, `mobile/lib/services/audio_service.dart`
+- **Reference docs**: [`docs/design/AUDIO_UX.md`](docs/design/AUDIO_UX.md)
+- **HLS playback**: Native audio streaming with just_audio package
+- **Controls**: Play/pause, seek, volume, progress bar
+- **Elder-friendly UI**: Large buttons, clear indicators
+- **Success criteria**: Smooth audio playback on all platforms
+
+**Task 3.5: Story Generation Flow**
+- **Files to create**: `mobile/lib/screens/story/generate_audio_screen.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Story Creation Flow section)
+- **Progress tracking**: Real-time audio generation progress
+- **Preview functionality**: Listen to generated audio before publishing
+- **Regeneration**: Option to regenerate if unsatisfied
+- **Success criteria**: Users can generate and preview audio easily
+
+**Task 3.6: Story Playback Experience**
+- **Files to create**: `mobile/lib/screens/story/story_player_screen.dart`
+- **Reference docs**: [`docs/design/AUDIO_UX.md`](docs/design/AUDIO_UX.md)
+- **Synchronized view**: Original images alongside audio player
+- **Text following**: Highlight text as audio plays (basic implementation)
+- **Offline capability**: Download for offline listening
+- **Success criteria**: Rich story consumption experience
+
+**Sprint 3 Success Criteria**:
+- [ ] Audio generation completes within 60 seconds
+- [ ] HLS streaming works on iOS, Android, and web
+- [ ] Audio player has intuitive, elder-friendly controls
+- [ ] Stories can be downloaded for offline listening
+- [ ] Text synchronization provides basic following
+
+---
+
+## Sprint 4: Family Dashboard & Sharing (Weeks 7-8)
+
+### Backend Tasks
+
+**Task 4.1: Family Dashboard API**
+- **Files to create**: `backend/src/api/dashboard.rs`
+- **Reference docs**: [`docs/specs/API.md`](docs/specs/API.md) (Dashboard endpoints)
+- **Story listing**: Paginated family stories with metadata
+- **Activity feed**: Recent family activity (new stories, members)
+- **Analytics**: Basic usage stats (stories created, listening time)
+- **Success criteria**: Fast dashboard loading with relevant family data
+
+**Task 4.2: Story Sharing System**
+- **Files to create**: `backend/src/api/sharing.rs`, `backend/src/models/share.rs`
+- **Reference docs**: [`docs/specs/DATABASE_SCHEMA.md`](docs/specs/DATABASE_SCHEMA.md) (Sharing permissions)
+- **Permission checks**: Role-based access to family stories
+- **Share links**: Generate secure links for individual stories
+- **Analytics tracking**: Track story plays and engagement
+- **Success criteria**: Stories shared securely within family
+
+**Task 4.3: Notification System**
+- **Files to create**: `backend/src/services/notifications.rs`
+- **Reference docs**: [`docs/specs/EMAIL_INTEGRATION.md`](docs/specs/EMAIL_INTEGRATION.md)
+- **SendGrid integration**: Email notifications for new stories
+- **Notification types**: New story published, family member joined
+- **Email templates**: Beautiful, elder-friendly email designs
+- **Success criteria**: Family members notified of important events
+
+### Frontend Tasks
+
+**Task 4.4: Family Dashboard**
+- **Files to create**: `mobile/lib/screens/dashboard/family_dashboard.dart`
+- **Reference docs**: [`docs/design/UI_COMPONENTS.md`](docs/design/UI_COMPONENTS.md) (Dashboard components)
+- **Story grid**: Visual grid of family stories with thumbnails
+- **Search functionality**: Find stories by title or creator
+- **Filter options**: Sort by date, creator, or popularity
+- **Success criteria**: Easy discovery of family stories
+
+**Task 4.5: Story Detail & Sharing**
+- **Files to create**: `mobile/lib/screens/story/story_detail_screen.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Story Consumption Flow section)
+- **Rich metadata**: Story details, creator info, creation date
+- **Sharing controls**: Copy link, native sharing options
+- **Related stories**: Suggest similar or related family stories
+- **Success criteria**: Comprehensive story viewing experience
+
+**Task 4.6: Family Management UI**
+- **Files to create**: `mobile/lib/screens/family/family_settings_screen.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Family Management Flow section)
+- **Member management**: View, invite, remove family members
+- **Role management**: Change member roles (Owner/Admin only)
+- **Family settings**: Update family name, description, preferences
+- **Success criteria**: Complete family administration capabilities
+
+**Sprint 4 Success Criteria**:
+- [ ] Family dashboard loads quickly and shows relevant content
+- [ ] Stories can be discovered and shared easily within family
+- [ ] Family member management is intuitive for elders
+- [ ] Email notifications are delivered reliably
+- [ ] Search and filtering help find specific stories
+
+---
+
+## Sprint 5: Payment System & Subscriptions (Weeks 9-10)
+
+### Backend Tasks
+
+**Task 5.1: Stripe Integration**
+- **Files to create**: `backend/src/services/stripe.rs`, `backend/src/api/billing.rs`
+- **Reference docs**: [`docs/MVP_REQUIREMENTS.md`](docs/MVP_REQUIREMENTS.md) (Payment System section)
+- **Subscription management**: Family-based billing, not per-user
+- **Free trial**: 14-day trial with credit card required upfront
+- **Webhooks**: Handle payment success, failure, subscription changes
+- **Success criteria**: End-to-end payment processing
+
+**Task 5.2: Subscription Enforcement**
+- **Files to create**: `backend/src/middleware/subscription.rs`
+- **Reference docs**: [`docs/MVP_REQUIREMENTS.md`](docs/MVP_REQUIREMENTS.md) (Free vs Paid tiers)
+- **Usage limits**: 3 stories/month for free tier, unlimited for paid
+- **Feature gates**: Watermarks, processing speed, family size limits
+- **Grace period**: 3-day grace period for failed payments
+- **Success criteria**: Subscription limits enforced correctly
+
+**Task 5.3: Billing Management API**
+- **Files to create**: `backend/src/api/subscriptions.rs`
+- **Reference docs**: [`docs/specs/PAYMENT_SYSTEM.md`](docs/specs/PAYMENT_SYSTEM.md)
+- **API endpoints**: Upgrade, downgrade, cancel, billing history
+- **Payment methods**: Update cards, handle failed payments
+- **Invoicing**: Generate and email invoices
+- **Success criteria**: Complete subscription self-service
+
+### Frontend Tasks
+
+**Task 5.4: Onboarding Payment Flow**
+- **Files to create**: `mobile/lib/screens/onboarding/payment_screen.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (New User Onboarding section)
+- **Stripe elements**: Secure credit card input
+- **Clear messaging**: "Free for 14 days, then $14.99/month"
+- **Trial countdown**: Show days remaining in trial
+- **Success criteria**: Seamless payment collection during signup
+
+**Task 5.5: Subscription Management UI**
+- **Files to create**: `mobile/lib/screens/billing/subscription_screen.dart`
+- **Reference docs**: [`docs/MVP_REQUIREMENTS.md`](docs/MVP_REQUIREMENTS.md) (Payment System section)
+- **Plan comparison**: Free vs Family Plan feature comparison
+- **Usage tracking**: Show current usage vs limits
+- **Payment history**: List of past payments and invoices
+- **Success criteria**: Users can manage subscriptions independently
+
+**Task 5.6: Upgrade/Downgrade Flows**
+- **Files to create**: `mobile/lib/screens/billing/plan_change_screen.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Subscription Management Flow)
+- **Plan changes**: Immediate upgrade, end-of-period downgrade
+- **Prorating**: Handle mid-cycle plan changes
+- **Confirmation**: Clear confirmation before changes
+- **Success criteria**: Plan changes work correctly with proper billing
+
+**Sprint 5 Success Criteria**:
+- [ ] Payment processing is secure and PCI compliant
+- [ ] Free trial converts to paid subscription automatically
+- [ ] Subscription limits are enforced accurately
+- [ ] Users can manage billing independently
+- [ ] Payment failures are handled gracefully
+
+---
+
+## Sprint 6: UI Polish & Accessibility (Weeks 11-12)
+
+### Frontend Focus Sprint
+
+**Task 6.1: Elder-Friendly UI Improvements**
+- **Files to modify**: All UI components in `mobile/lib/widgets/`
+- **Reference docs**: [`docs/design/UI_COMPONENTS.md`](docs/design/UI_COMPONENTS.md), [`docs/MVP_REQUIREMENTS.md`](docs/MVP_REQUIREMENTS.md)
+- **Touch targets**: Minimum 60px for all interactive elements
+- **Typography**: Large, readable fonts with high contrast
+- **Color scheme**: High contrast mode support
+- **Success criteria**: UI tested with users 65+ years old
+
+**Task 6.2: Accessibility Compliance**
+- **Files to modify**: All screens and widgets
+- **Reference docs**: [`docs/TESTING.md`](docs/TESTING.md) (Accessibility Testing section)
+- **Screen readers**: VoiceOver (iOS) and TalkBack (Android) support
+- **Keyboard navigation**: Full keyboard navigation support
+- **WCAG compliance**: Meet WCAG 2.1 AA standards
+- **Success criteria**: Passes automated and manual accessibility tests
+
+**Task 6.3: Error Handling & User Feedback**
+- **Files to create**: `mobile/lib/widgets/error_states.dart`, `mobile/lib/services/error_service.dart`
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Error Recovery Flows section)
+- **Error states**: User-friendly error messages and recovery options
+- **Loading states**: Clear progress indicators for long operations
+- **Success states**: Confirmation messages for completed actions
+- **Success criteria**: Users understand system state at all times
+
+**Task 6.4: Cross-Platform Consistency**
+- **Files to modify**: Platform-specific implementations
+- **Reference docs**: [`docs/USER_FLOWS.md`](docs/USER_FLOWS.md) (Cross-Platform Considerations)
+- **iOS specifics**: Native navigation patterns, SF Symbols
+- **Android specifics**: Material Design components, system integration
+- **Web specifics**: Responsive design, keyboard shortcuts
+- **Success criteria**: Native feel on each platform
+
+**Task 6.5: Performance Optimization**
+- **Files to modify**: All performance-critical components
+- **Reference docs**: [`docs/TESTING.md`](docs/TESTING.md) (Performance Testing section)
+- **Image optimization**: Lazy loading, caching, compression
+- **Audio optimization**: Streaming efficiency, offline caching
+- **Network optimization**: Request batching, retry logic
+- **Success criteria**: App performs well on older devices
+
+**Task 6.6: Final Integration Testing**
+- **Files to create**: `mobile/integration_test/complete_flows_test.dart`
+- **Reference docs**: [`docs/TESTING.md`](docs/TESTING.md) (End-to-End Tests section)
+- **Complete user journeys**: Test all major flows end-to-end
+- **Edge cases**: Test error conditions and recovery
+- **Multi-platform**: Run same tests on iOS, Android, web
+- **Success criteria**: All user flows work reliably
+
+**Sprint 6 Success Criteria**:
+- [ ] UI is optimized for elderly users (65+ years old)
+- [ ] App meets WCAG 2.1 AA accessibility standards
+- [ ] Error handling provides clear guidance and recovery
+- [ ] Performance is acceptable on 3-year-old devices
+- [ ] Cross-platform experience is consistent and native
+
+---
+
+## Deployment & Launch (Week 12)
+
+### DevOps Tasks
+
+**Task 7.1: Production Environment Setup**
+- **Files to create**: `docker-compose.prod.yml`, `scripts/deploy.sh`
+- **Reference docs**: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) (Simple Deployment section)
+- **Single server**: Docker Compose on VPS, not Kubernetes
+- **SSL certificates**: Let's Encrypt for HTTPS
+- **Database**: PostgreSQL with automated backups
+- **Success criteria**: Production environment is stable and secure
+
+**Task 7.2: Monitoring & Alerting**
+- **Files to create**: `docker/prometheus.yml`, `docker/grafana/dashboards/`
+- **Reference docs**: [`docs/ops/MONITORING.md`](docs/ops/MONITORING.md)
+- **Health checks**: API endpoint monitoring
+- **Error tracking**: Sentry integration for error reporting
+- **Alerts**: Email/SMS alerts for critical issues
+- **Success criteria**: Critical issues are detected and reported immediately
+
+### Final Testing & Launch
+
+**Task 7.3: Production Testing**
+- **Files to create**: `scripts/smoke-tests.sh`
+- **Load testing**: Simulate expected user load
+- **Security testing**: Basic penetration testing
+- **Backup testing**: Verify backup and restore procedures
+- **Success criteria**: Production system handles expected load
+
+**Task 7.4: Launch Preparation**
+- **App store submissions**: iOS App Store and Google Play Store
+- **Marketing site**: Simple landing page with signup
+- **Support documentation**: User help documentation
+- **Success criteria**: All launch materials ready
+
+**Final Success Criteria**:
+- [ ] Production environment is stable and monitored
+- [ ] All critical user flows work end-to-end
+- [ ] Performance meets MVP requirements
+- [ ] Security audit passes
+- [ ] Apps are approved in app stores
+- [ ] Support documentation is complete
+
+---
+
+## AI Agent Guidelines
+
+### File Reference Format
+All tasks include specific file paths to create or modify. Use this format:
+- **Files to create**: New files needed for this task
+- **Files to modify**: Existing files to update
+- **Reference docs**: Documentation to review before starting
+
+### Dependency Management
+- **Database dependencies**: Which tables/migrations must exist
+- **API dependencies**: Which endpoints this task depends on
+- **Service dependencies**: External services that must be configured
+
+### Testing Requirements
+- **Unit tests**: Required in same directory structure as implementation
+- **Integration tests**: End-to-end testing for complete features
+- **Success criteria**: Specific, measurable outcomes
+
+### Documentation Updates
+After completing each task, update:
+- API documentation if endpoints change
+- User documentation if UI changes
+- Technical documentation if architecture changes
+
+This sprint plan provides the granular detail needed for AI agents to work effectively while maintaining focus on MVP delivery.

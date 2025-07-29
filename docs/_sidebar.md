@@ -1,8 +1,9 @@
 * **Getting Started**
   * [Project Overview](README.md)
+  * [MVP Requirements](MVP_REQUIREMENTS.md)
   * [Setup Guide](SETUP.md)
   * [Architecture Overview](ARCHITECTURE.md)
-  * [Sprint Plan](SPRINTS.md)
+  * [User Flows](USER_FLOWS.md)
 
 * **Design System**
   * [Brand Guide](design/BRAND_GUIDE.md)
@@ -21,9 +22,7 @@
   * [Logging & Linting](LOGGING_AND_LINTING.md)
 
 * **Feature Specifications**
-  * [User Flows](specs/USER_FLOWS.md)
   * [Audio Processing](specs/AUDIO_PROCESSING.md)
-  * [Station Generation](specs/STATION_GENERATION.md)
   * [Payment System](specs/PAYMENT_SYSTEM.md)
   * [Email Integration](specs/EMAIL_INTEGRATION.md)
   * [Background Jobs](specs/BACKGROUND_JOBS.md)

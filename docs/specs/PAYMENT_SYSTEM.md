@@ -1,38 +1,44 @@
-# Payment System Specification
+# Payment System Specification - MVP
 
 ## Overview
 
-The FamilyTales payment system implements a family-based subscription model using Stripe for payment processing. Each family has one designated payer (Head of Family) who manages the subscription for unlimited family members.
+The FamilyTales MVP payment system implements a family-based subscription model using Stripe for payment processing. Each family has one designated payer (Family Owner) who manages the subscription for unlimited family members.
+
+**MVP Requirements** (from [`MVP_REQUIREMENTS.md`](../../MVP_REQUIREMENTS.md)):
+- 14-day free trial with credit card required upfront
+- Family-based billing (not per-user)
+- Two tiers: Free (after trial) and Family Plan ($14.99/month)
+- Automatic billing after trial unless cancelled
+- Grace period for failed payments
 
 ## Subscription Tiers
 
-### Free Tier
+### Free Trial (14 Days)
+- **Price**: $0 for 14 days
+- **Features**:
+  - All Family Plan features during trial
+  - Credit card required upfront
+  - Automatic conversion to paid plan
+  - Can cancel anytime during trial
+
+### Free Tier (Post-Trial)
 - **Price**: $0/month
 - **Features**:
-  - 5 stories per family per month
-  - Basic AI generation
-  - Standard image quality
-  - 30-day story retention
+  - 3 stories per month (resets monthly)
+  - Basic TTS voice only
+  - Up to 5 family members
+  - Watermark on shared content
+  - Standard processing (up to 24 hours)
 
-### Family Tier
-- **Price**: $14.99/month or $149.99/year (17% discount)
+### Family Plan
+- **Price**: $14.99/month (MVP has monthly billing only)
 - **Features**:
   - Unlimited stories
-  - Advanced AI models
-  - High-quality images
-  - Unlimited storage
-  - Export capabilities
-  - Priority support
-
-### Legacy Tier
-- **Price**: $29.99/month or $299.99/year (17% discount)
-- **Features**:
-  - Everything in Family tier
-  - Professional book printing integration
-  - Custom family crest design
-  - Advanced genealogy features
-  - White-glove onboarding
-  - Dedicated support
+  - Unlimited family members
+  - Premium TTS voice (1 high-quality option)
+  - Priority processing (under 5 minutes)
+  - No watermarks
+  - Email support
 
 ## Stripe Integration
 
@@ -81,17 +87,17 @@ pub struct Subscription {
 pub enum SubscriptionTier {
     Free,
     Family,
-    Legacy,
+    // Legacy tier removed from MVP
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubscriptionStatus {
+    Trialing,    // 14-day free trial (MVP priority)
     Active,
     PastDue,
     Canceled,
     Incomplete,
     IncompleteExpired,
-    Trialing,
     Unpaid,
 }
 ```
@@ -130,12 +136,11 @@ async fn handle_stripe_webhook(
 ### One Payer Per Family
 
 ```rust
-// Family structure with designated payer
+// MVP: Simplified family structure - Owner is the payer
 pub struct Family {
     pub id: Uuid,
     pub name: String,
-    pub head_of_family_id: Uuid,
-    pub payer_id: Uuid, // Can be different from head_of_family
+    pub owner_id: Uuid,  // Owner is always the payer in MVP
     pub subscription_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
@@ -183,9 +188,12 @@ async fn track_story_creation(
 
 ## Advanced Features
 
-### Gift Subscriptions
+### Gift Subscriptions (POST-MVP)
+
+**Note**: Gift subscriptions are not included in MVP scope.
 
 ```rust
+// POST-MVP: Gift subscriptions for future implementation
 pub struct GiftSubscription {
     pub id: Uuid,
     pub gifter_email: String,
@@ -196,39 +204,31 @@ pub struct GiftSubscription {
     pub redeemed_at: Option<DateTime<Utc>>,
     pub expires_at: DateTime<Utc>,
 }
-
-#[post("/api/payments/gift")]
-async fn create_gift_subscription(
-    req: GiftSubscriptionRequest,
-    stripe: web::Data<StripeClient>,
-) -> Result<HttpResponse, Error> {
-    // Create one-time payment
-    // Generate unique code
-    // Send gift email
-}
 ```
 
 ### Payment Method Management
 
+**MVP Scope**: Single payment method per family (credit card required for trial signup).
+
 ```rust
-#[get("/api/payments/methods")]
-async fn list_payment_methods(
+// MVP: Simplified payment method management
+#[get("/api/payments/method")]
+async fn get_payment_method(
     user: AuthenticatedUser,
     stripe: web::Data<StripeClient>,
 ) -> Result<HttpResponse, Error> {
-    // Get Stripe customer
-    // List payment methods
-    // Return sanitized data
+    // Get default payment method for family
+    // Return sanitized data (last 4 digits, brand)
 }
 
-#[post("/api/payments/methods")]
-async fn add_payment_method(
-    token: String,
+#[put("/api/payments/method")]
+async fn update_payment_method(
+    payment_method_id: String,
     user: AuthenticatedUser,
     stripe: web::Data<StripeClient>,
 ) -> Result<HttpResponse, Error> {
-    // Attach payment method
-    // Set as default if needed
+    // Replace current payment method
+    // Update Stripe customer default
 }
 ```
 
@@ -439,31 +439,37 @@ async fn revenue_dashboard(
 4. **Audit Trail**: Log all payment-related actions
 5. **Data Encryption**: Encrypt sensitive payment data at rest
 
-## Implementation Timeline
+## Implementation Timeline (MVP)
 
-### Phase 1: Core Payment Flow (Week 1-2)
-- Stripe account setup
-- Customer and subscription creation
-- Basic webhook handling
-- Free tier implementation
+**Reference**: [`SPRINTS.md`](../../SPRINTS.md) Sprint 5 (Weeks 9-10 in overall MVP timeline)
 
-### Phase 2: Subscription Management (Week 3-4)
-- Payment method management
-- Upgrade/downgrade flows
-- Proration handling
-- Failed payment recovery
+### Sprint 5: Payment System & Subscriptions (Weeks 9-10)
 
-### Phase 3: Advanced Features (Week 5-6)
+#### Backend Tasks (Week 1)
+- Stripe integration and webhook setup
+- 14-day trial implementation with automatic billing
+- Subscription enforcement middleware (usage limits)
+- Failed payment handling and grace periods
+
+#### Frontend Tasks (Week 2)  
+- Trial signup flow with credit card collection
+- Subscription management UI (cancel, update payment method)
+- Usage tracking display (stories remaining for free tier)
+- Billing history and invoice access
+
+### Key MVP Deliverables
+- ✅ Credit card required for 14-day free trial
+- ✅ Automatic conversion to Family Plan ($14.99/month)
+- ✅ Free tier with 3 stories/month after trial ends
+- ✅ Single payment method per family (no multiple cards)
+- ✅ Basic failed payment recovery (3-day grace period)
+
+### Post-MVP Features (Future Sprints)
 - Gift subscriptions
-- Annual billing
-- Revenue reporting
-- Admin dashboard
-
-### Phase 4: Polish and Testing (Week 7-8)
-- Comprehensive testing
-- Error handling
-- Documentation
-- Customer support tools
+- Annual billing discounts  
+- Multiple payment methods
+- Revenue analytics dashboard
+- Advanced dunning management
 
 ## Testing Strategy
 

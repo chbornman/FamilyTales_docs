@@ -6,9 +6,10 @@ Welcome to the comprehensive documentation for FamilyTales - the platform that t
 
 ### Getting Started
 
+- **[MVP Requirements](MVP_REQUIREMENTS.md)** - **Read First** - Clear MVP scope and boundaries
 - **[Setup Guide](SETUP.md)** - Complete development environment setup
 - **[Architecture Overview](ARCHITECTURE.md)** - High-level system architecture and design decisions
-- **[API Documentation](API.md)** - Complete REST API reference with examples
+- **[User Flows](USER_FLOWS.md)** - Complete user journey documentation
 
 ### Development
 
@@ -115,11 +116,11 @@ graph TB
 - **Invitation System** - Beautiful email invites and QR codes
 - **Memory Books** - Organized collections with threading
 
-### Subscription Model
+### Subscription Model (MVP)
 
-- **Free Tier** - 3 documents/month, basic voices
-- **Family Plan** - $14.99/month, unlimited family members
-- **Legacy Plan** - $29.99/month, voice cloning and premium features
+- **14-Day Free Trial** - All features, credit card required upfront
+- **Free Tier (Post-Trial)** - 3 stories/month, basic voices, 5 family members
+- **Family Plan** - $14.99/month, unlimited stories and family members
 
 ## 🔧 Development Guidelines
 
@@ -252,32 +253,33 @@ kubectl exec -n familytales postgres-0 -- psql -c "SELECT count(*) FROM pg_stat_
 
 ## 📈 Roadmap
 
-### Q1 2025 - MVP Launch
+### Q1 2025 - MVP Launch (12 Weeks)
 
-- [ ] Core document processing
-- [ ] Family management
-- [ ] Basic subscription system
-- [ ] Mobile app (iOS/Android)
+- [ ] Core OCR and audio generation pipeline
+- [ ] Family management (single family per user)
+- [ ] Payment system with 14-day free trial
+- [ ] Flutter app (iOS/Android/Web/Desktop)
+- [ ] Simple Docker Compose deployment
 
 ### Q2 2025 - Growth Features
 
-- [ ] Web application
-- [ ] Bulk upload
-- [ ] Premium voice options
-- [ ] Analytics dashboard
+- [ ] Multiple families per user
+- [ ] Voice selection (multiple TTS options)
+- [ ] Advanced Memory Books with threading
+- [ ] Bulk upload and processing
 
 ### Q3 2025 - Scale & Polish
 
-- [ ] Voice cloning
-- [ ] Multi-language support
-- [ ] Advanced search
-- [ ] Print-on-demand books
+- [ ] Voice cloning (preserve actual family voices)
+- [ ] Print-on-demand memory books
+- [ ] Advanced search and organization
+- [ ] Kubernetes deployment
 
 ### Q4 2025 - Enterprise
 
 - [ ] White-label solutions
 - [ ] API marketplace
-- [ ] Advanced analytics
+- [ ] Advanced analytics and reporting
 - [ ] International expansion
 
 ## 📄 License

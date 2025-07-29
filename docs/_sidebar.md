@@ -1,6 +1,6 @@
 * **Getting Started**
-  * [Sprint Plan](SPRINTS.md)
   * [Project Overview](README.md)
+  * [Sprint Plan](SPRINTS.md)
   * [MVP Requirements](MVP_REQUIREMENTS.md)
   * [Setup Guide](SETUP.md)
   * [Architecture Overview](ARCHITECTURE.md)

@@ -3,7 +3,7 @@
   * [MVP Requirements](MVP_REQUIREMENTS.md)
   * [Setup Guide](SETUP.md)
   * [Architecture Overview](ARCHITECTURE.md)
-  * [User Flows](USER_FLOWS.md)
+  * [MVP User Flows](MVP_USER_FLOWS.md)
 
 * **Design System**
   * [Brand Guide](design/BRAND_GUIDE.md)
@@ -22,6 +22,7 @@
   * [Logging & Linting](LOGGING_AND_LINTING.md)
 
 * **Feature Specifications**
+  * [User Flows](specs/USER_FLOWS.md)
   * [Audio Processing](specs/AUDIO_PROCESSING.md)
   * [Payment System](specs/PAYMENT_SYSTEM.md)
   * [Email Integration](specs/EMAIL_INTEGRATION.md)

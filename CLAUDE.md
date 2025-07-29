@@ -13,8 +13,9 @@ This is primarily a documentation and planning repository containing:
 - `docs/` - Comprehensive technical documentation
 - `README.md` - Project overview, features, and business model
 - `docs/MVP_REQUIREMENTS.md` - **Read First** - Clear MVP scope and boundaries
-- `SPRINTS.md` - Detailed, AI-agent-friendly sprint planning
-- `docs/USER_FLOWS.md` - Complete user journey documentation
+- `docs/SPRINTS.md` - Detailed, AI-agent-friendly sprint planning
+- `docs/MVP_USER_FLOWS.md` - Complete user journey documentation for MVP features
+- `docs/specs/USER_FLOWS.md` - Comprehensive user flows for all features
 - `original_research/` - Market research and competitive analysis
 - `product_brainstorm/` - Architecture, business case, and technical planning
 
@@ -41,11 +42,25 @@ Since this is currently a documentation repository, the main development activit
 
 ### Documentation Site
 ```bash
-# Serve documentation locally (if using docsify or similar)
+# Serve documentation locally with docsify (recommended)
 npx docsify serve docs
 
-# Or serve with Python
-cd docs && python -m http.server 3000
+# Alternative: serve with Python
+cd docs && python -m http.server 8000
+```
+
+### Current Development Commands
+Since this is a documentation repository with a docsify setup:
+
+```bash
+# View documentation locally
+npx docsify serve docs
+
+# The documentation includes:
+# - Complete MVP specifications in docs/MVP_REQUIREMENTS.md
+# - Sprint planning in docs/SPRINTS.md with AI-agent-friendly tasks
+# - User flows in docs/MVP_USER_FLOWS.md (MVP) and docs/specs/USER_FLOWS.md (comprehensive)
+# - Architecture docs in docs/ARCHITECTURE.md and docs/specs/
 ```
 
 ### Future Development Commands (when implementation begins)
@@ -170,6 +185,20 @@ Key success metrics:
 - $240 customer lifetime value
 - 70+ Net Promoter Score
 
+## Documentation Structure
+
+The documentation is organized in a docsify site under `docs/` with:
+- **Getting Started**: MVP requirements, sprint planning, user flows, architecture
+- **Feature Specifications**: Detailed technical specs in `docs/specs/`
+- **Operations**: Deployment, monitoring, security in `docs/ops/` 
+- **Design System**: Brand guide, UI components, audio UX in `docs/design/`
+
+Key files for AI agents:
+- `docs/MVP_REQUIREMENTS.md` - **Read first** for scope boundaries
+- `docs/SPRINTS.md` - Granular development tasks with file references
+- `docs/specs/DATABASE_SCHEMA.md` - Complete data model
+- `docs/specs/FRONTEND_ARCHITECTURE.md` - Flutter app structure
+
 ## Important Notes
 
 - **Elder-first design**: Large touch targets, high contrast, simple navigation
@@ -177,5 +206,6 @@ Key success metrics:
 - **Privacy focused**: Self-hosted processing, GDPR compliance
 - **Emotional product**: Focus on preserving irreplaceable memories
 - **Performance critical**: Fast processing builds trust with older users
+- **Documentation-first**: This repository contains comprehensive planning before implementation
 
-When implementing features, always consider the target demographic and the emotional value of the content being processed.
+When working with this codebase, always reference the MVP boundaries in `docs/MVP_REQUIREMENTS.md` and follow the sprint tasks in `docs/SPRINTS.md` which include specific file paths and implementation guidance.

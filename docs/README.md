@@ -45,8 +45,13 @@ Welcome to the comprehensive documentation for FamilyTales - the platform that t
 
 ### 1. Clone and Setup
 ```bash
-git clone https://github.com/familytales/familytales.git
-cd familytales
+# Clone the main private repository (requires access)
+git clone https://github.com/chbornman/FamilyTales.git
+cd FamilyTales
+
+# Or clone the public documentation repository
+git clone https://github.com/chbornman/FamilyTales_docs.git
+cd FamilyTales_docs
 
 # Start infrastructure services
 docker-compose up -d postgres redis rabbitmq

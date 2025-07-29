@@ -30,21 +30,22 @@ FamilyTales is a cross-platform application that converts handwritten documents 
 │                     Client Applications                          │
 │            (Flutter - iOS/Android/Web/Desktop)                   │
 ├─────────────────────────────────────────────────────────────────┤
-│                          Core Services                           │
-├──────────────────┬──────────────────┬──────────────────────────┤
-│   OCR Engine     │  Audio Engine    │    Streaming Service     │
-│ (Self-hosted     │   (TTS + HLS)    │  (CDN + Edge Cache)      │
-│    olmOCR)       │                  │                          │
-├──────────────────┴──────────────────┴──────────────────────────┤
-│                      Backend Services                            │
-│                   (Google Cloud Platform)                        │
-├──────────────────┬──────────────────┬──────────────────────────┤
-│   API Gateway    │  Microservices   │   Database Layer         │
-│  (Cloud Endpoints)│  (Cloud Run)     │  (Firestore + Storage)   │
-├──────────────────┴──────────────────┴──────────────────────────┤
-│                    Self-Hosted Infrastructure                    │
-│                        (olmOCR Server Farm)                      │
-└─────────────────────────────────────────────────────────────────┘
+│                    Rust Axum API Backend                         │
+│         (Business Logic, Auth, Job Orchestration)                │
+├─────────────────┬─────────────────┬────────────────────────────┤
+│   PostgreSQL     │     Redis       │         MinIO              │
+│   (User Data,    │  (Cache, Job    │   (Object Storage for      │
+│    Metadata)     │     State)      │    Images, Audio)          │
+├─────────────────┴─────────────────┴────────────────────────────┤
+│                       RabbitMQ Job Queue                         │
+│            (Distributes processing to local PC)                  │
+├─────────────────────────────────────────────────────────────────┤
+│                  Local PC Processing Worker                      │
+│                  (Powerful Desktop Machine)                      │
+├─────────────────┬─────────────────┬────────────────────────────┤
+│   olmOCR Engine  │  TTS Generation │   HLS Segmentation         │
+│  (GPU Accelerated)│  (High Quality) │   & Optimization           │
+└─────────────────┴─────────────────┴────────────────────────────┘
 ```
 
 ### High-Level Data Flow
@@ -343,33 +344,157 @@ dependencies:
 
 ### Backend Services
 
-**Cloud Platform**: Google Cloud Platform
-- Proven scalability and reliability
-- Integrated AI/ML services
-- Global infrastructure
+**Primary Backend**: Rust with Axum Framework
+- High-performance async web framework
+- Type-safe API development
+- Excellent concurrency for handling multiple requests
+- Low memory footprint for cost-effective hosting
 
-**Core Services**:
-- **Cloud Run**: Containerized microservices
-- **Cloud Endpoints**: API management
-- **Firestore**: NoSQL document database
-- **Cloud Storage**: Binary file storage
-- **Cloud CDN**: Global content delivery
-- **Cloud Tasks**: Async job processing
+**Rust Backend Stack**:
+```toml
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "compression"] }
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls"] }
+redis = { version = "0.24", features = ["tokio-comp"] }
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+jsonwebtoken = "9.2"
+reqwest = { version = "0.11", features = ["json"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
-**Supporting Services**:
-- **Cloud Functions**: Event-driven processing
-- **Cloud Pub/Sub**: Service communication
-- **Cloud Monitoring**: Observability
-- **Cloud IAM**: Access control
+# Job queue management
+lapin = "2.3" # RabbitMQ client for job distribution
+```
+
+**Job Processing Architecture**:
+```rust
+// Job queue system for delegating heavy processing
+pub struct ProcessingJob {
+    pub id: Uuid,
+    pub job_type: JobType,
+    pub priority: Priority,
+    pub payload: JobPayload,
+}
+
+pub enum JobType {
+    OcrProcessing { 
+        document_id: Uuid,
+        image_url: String,
+        language_hints: Vec<String>,
+    },
+    AudioGeneration {
+        document_id: Uuid,
+        text: String,
+        voice_settings: VoiceSettings,
+    },
+    HlsSegmentation {
+        audio_file: String,
+        output_settings: HlsSettings,
+    }
+}
+```
+
+**Infrastructure Components**:
+- **PostgreSQL**: Primary database for relational data
+- **Redis**: Session cache and job queue state
+- **RabbitMQ**: Job queue for communication with local PC
+- **MinIO**: Self-hosted S3-compatible object storage
+- **Nginx**: Reverse proxy and static file serving
+- **Local PC Worker**: Powerful machine running job processor
+
+### Local PC Worker Service
+
+**Worker Implementation** (Rust):
+```rust
+// Local PC worker that polls for jobs
+pub struct LocalWorker {
+    rabbit_conn: lapin::Connection,
+    ocr_engine: OlmOcrEngine,
+    tts_engine: TtsEngine,
+    hls_processor: HlsProcessor,
+}
+
+impl LocalWorker {
+    pub async fn start(&mut self) -> Result<()> {
+        let channel = self.rabbit_conn.create_channel().await?;
+        let consumer = channel
+            .basic_consume(
+                "processing_queue",
+                "local_pc_worker",
+                BasicConsumeOptions::default(),
+            )
+            .await?;
+        
+        while let Some(delivery) = consumer.next().await {
+            let job: ProcessingJob = serde_json::from_slice(&delivery.data)?;
+            
+            match job.job_type {
+                JobType::OcrProcessing { .. } => {
+                    self.process_ocr(job).await?;
+                },
+                JobType::AudioGeneration { .. } => {
+                    self.process_audio(job).await?;
+                },
+                JobType::HlsSegmentation { .. } => {
+                    self.process_hls(job).await?;
+                }
+            }
+            
+            delivery.ack(BasicAckOptions::default()).await?;
+        }
+        Ok(())
+    }
+}
+```
+
+**GPU Acceleration**:
+- CUDA support for olmOCR processing
+- Hardware-accelerated audio encoding
+- Parallel job processing capabilities
 
 ## API Design
 
-### RESTful API Structure
+### Rust Axum API Structure
 
-```
-Base URL: https://api.familytales.app/v1
+```rust
+use axum::{
+    Router,
+    routing::{get, post, patch, delete},
+    middleware,
+};
 
-Authentication: Bearer Token (Firebase Auth)
+pub fn create_app() -> Router {
+    Router::new()
+        // Public routes
+        .route("/health", get(handlers::health_check))
+        .route("/auth/register", post(handlers::auth::register))
+        .route("/auth/login", post(handlers::auth::login))
+        
+        // Protected routes
+        .nest("/api/v1", api_routes())
+        .layer(middleware::from_fn(auth::verify_token))
+}
+
+fn api_routes() -> Router {
+    Router::new()
+        // Document routes
+        .route("/documents", post(handlers::documents::create))
+        .route("/documents/:id", get(handlers::documents::get))
+        .route("/documents/:id", patch(handlers::documents::update))
+        .route("/documents/:id/process", post(handlers::documents::process))
+        
+        // Family routes
+        .route("/family/invite", post(handlers::family::create_invite))
+        .route("/family/join/:code", post(handlers::family::join))
+        
+        // Streaming routes
+        .route("/stream/:id/playlist.m3u8", get(handlers::stream::hls_playlist))
+        .route("/stream/:id/:segment", get(handlers::stream::hls_segment))
+}
 ```
 
 ### Core Endpoints
@@ -504,303 +629,301 @@ ws://api.familytales.app/ws/ocr/{documentId}
 
 ## Database Schema
 
-### Firestore Collections
+### PostgreSQL Schema
 
-#### Users Collection
-```javascript
-users/{userId} {
-  email: string,
-  display_name: string,
-  subscription: {
-    tier: "free|premium|family",
-    status: "active|cancelled|past_due",
-    expires_at: timestamp
-  },
-  preferences: {
-    default_voice: string,
-    default_language: string,
-    auto_enhance_images: boolean
-  },
-  usage: {
-    documents_processed: number,
-    audio_minutes_generated: number,
-    storage_used_mb: number
-  },
-  created_at: timestamp,
-  updated_at: timestamp
-}
+#### Users Table
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    display_name VARCHAR(255),
+    
+    -- Subscription info
+    subscription_tier VARCHAR(20) DEFAULT 'free' CHECK (subscription_tier IN ('free', 'premium', 'family_legacy')),
+    subscription_status VARCHAR(20) DEFAULT 'active',
+    subscription_expires_at TIMESTAMPTZ,
+    stripe_customer_id VARCHAR(255),
+    
+    -- Preferences
+    default_voice VARCHAR(50),
+    default_language VARCHAR(10) DEFAULT 'en',
+    auto_enhance_images BOOLEAN DEFAULT true,
+    
+    -- Usage tracking
+    documents_processed INTEGER DEFAULT 0,
+    audio_minutes_generated DECIMAL(10,2) DEFAULT 0,
+    storage_used_mb DECIMAL(10,2) DEFAULT 0,
+    
+    -- Timestamps
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    last_login_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_subscription ON users(subscription_tier, subscription_status);
 ```
 
-#### Documents Collection
-```javascript
-documents/{documentId} {
-  user_id: string,
-  type: "letter|memoir|journal|recipe|photo_annotation",
-  status: "uploading|processing|ready|error",
-  
-  // Organization
-  folder_path: string, // e.g., "/Grandma's Letters/Love Letters"
-  collections: [collectionId], // Can be in multiple collections
-  
-  // Original image data
-  image: {
-    storage_path: string,
-    width: number,
-    height: number,
-    size_bytes: number
-  },
-  
-  // OCR results with synchronization data
-  ocr: {
-    text: string,
-    confidence: number,
-    language: string,
-    processing_time_ms: number,
-    engine_used: "olmocr|olmocr_family_model|manual",
+#### Documents Table
+```sql
+CREATE TABLE documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(20) CHECK (type IN ('letter', 'memoir', 'journal', 'recipe', 'photo_annotation')),
+    status VARCHAR(20) DEFAULT 'uploading' CHECK (status IN ('uploading', 'processing', 'ready', 'error')),
     
-    // For synchronized playback
-    boundingBoxes: [{
-      word: string,
-      coordinates: {x: number, y: number, width: number, height: number},
-      page: number,
-      confidence: number
-    }],
-    pageBreaks: [number] // Character positions of page breaks
-  },
-  
-  // User corrections
-  corrections: [{
-    original: string,
-    corrected: string,
-    position: {start: number, end: number},
-    corrected_by: userId,
-    timestamp: timestamp
-  }],
-  
-  // Audio data with HLS
-  audio: {
-    master_file_path: string,
-    hls_playlist_path: string,
-    cdn_base_url: string,
-    duration_seconds: number,
-    voice_id: string,
-    available_qualities: ["64k", "128k", "192k"],
-    size_bytes: number
-  },
-  
-  // Rich metadata
-  metadata: {
-    title: string,
-    author: string,
-    recipient: string,
-    date_written: date,
+    -- Organization
+    folder_path VARCHAR(500),
     
-    // Flexible tagging system
-    tags: {
-      people: [string], // e.g., ["Grandma Rose", "Uncle John"]
-      topics: [string], // e.g., ["wedding", "war stories", "recipes"]
-      locations: [string], // e.g., ["Brooklyn", "family farm"]
-      time_periods: [string], // e.g., ["1940s", "WWII"]
-      custom: [string] // User-defined tags
-    },
+    -- Image data
+    image_s3_key VARCHAR(500),
+    image_width INTEGER,
+    image_height INTEGER,
+    image_size_bytes BIGINT,
     
-    // AI-extracted entities
-    mentioned_people: [{
-      name: string,
-      relationship: string,
-      confidence: number
-    }],
-    mentioned_dates: [date],
-    sentiment: "positive|neutral|negative|mixed"
-  },
-  
-  // Enhanced sharing
-  sharing: {
-    visibility: "private|family|public",
-    shared_with: [userId],
-    share_link: string,
-    download_allowed: boolean,
-    listen_count: number,
-    last_listened_by: {
-      user_id: string,
-      timestamp: timestamp
-    }
-  },
-  
-  created_at: timestamp,
-  updated_at: timestamp
-}
+    -- OCR results
+    ocr_text TEXT,
+    ocr_confidence DECIMAL(3,2),
+    ocr_language VARCHAR(10),
+    ocr_processing_time_ms INTEGER,
+    ocr_engine VARCHAR(50),
+    ocr_bounding_boxes JSONB, -- Array of word boundaries
+    ocr_page_breaks INTEGER[], -- Character positions
+    
+    -- Audio data
+    audio_s3_key VARCHAR(500),
+    audio_hls_playlist_key VARCHAR(500),
+    audio_duration_seconds DECIMAL(10,2),
+    audio_voice_id VARCHAR(50),
+    audio_available_qualities TEXT[],
+    audio_size_bytes BIGINT,
+    
+    -- Metadata
+    title VARCHAR(500),
+    author VARCHAR(255),
+    recipient VARCHAR(255),
+    date_written DATE,
+    
+    -- Sharing
+    visibility VARCHAR(20) DEFAULT 'private' CHECK (visibility IN ('private', 'family', 'public')),
+    share_link VARCHAR(100) UNIQUE,
+    download_allowed BOOLEAN DEFAULT true,
+    listen_count INTEGER DEFAULT 0,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Separate tables for many-to-many relationships
+CREATE TABLE document_collections (
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    collection_id UUID REFERENCES collections(id) ON DELETE CASCADE,
+    added_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (document_id, collection_id)
+);
+
+CREATE TABLE document_tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    tag_type VARCHAR(20) CHECK (tag_type IN ('people', 'topics', 'locations', 'time_periods', 'custom')),
+    tag_value VARCHAR(255),
+    confidence DECIMAL(3,2),
+    UNIQUE(document_id, tag_type, tag_value)
+);
+
+CREATE TABLE document_corrections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    original_text TEXT,
+    corrected_text TEXT,
+    position_start INTEGER,
+    position_end INTEGER,
+    corrected_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE document_shares (
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    shared_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (document_id, user_id)
+);
+
+CREATE INDEX idx_documents_user ON documents(user_id);
+CREATE INDEX idx_documents_status ON documents(status);
+CREATE INDEX idx_documents_folder ON documents(folder_path);
 ```
 
-#### Collections Collection
-```javascript
-collections/{collectionId} {
-  user_id: string,
-  name: string,
-  description: string,
-  cover_image: string,
-  
-  documents: [{
-    document_id: string,
-    order: number,
-    added_at: timestamp
-  }],
-  
-  sharing: {
-    visibility: "private|family|public",
-    collaborators: [{
-      user_id: string,
-      role: "viewer|editor|admin",
-      added_at: timestamp
-    }]
-  },
-  
-  created_at: timestamp,
-  updated_at: timestamp
-}
+#### Collections Table
+```sql
+CREATE TABLE collections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    cover_image_s3_key VARCHAR(500),
+    visibility VARCHAR(20) DEFAULT 'private' CHECK (visibility IN ('private', 'family', 'public')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE collection_collaborators (
+    collection_id UUID REFERENCES collections(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) CHECK (role IN ('viewer', 'editor', 'admin')),
+    added_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (collection_id, user_id)
+);
+
+CREATE INDEX idx_collections_user ON collections(user_id);
 ```
 
-#### Family Groups Collection
-```javascript
-family_groups/{groupId} {
-  name: string,
-  owner_id: string,
-  
-  members: [{
-    user_id: string,
-    role: "admin|member",
-    joined_at: timestamp
-  }],
-  
-  shared_collections: [collectionId],
-  
-  settings: {
-    auto_share_new_documents: boolean,
-    require_approval_for_edits: boolean
-  },
-  
-  created_at: timestamp,
-  updated_at: timestamp
-}
-```
-
-#### Folders Collection
-```javascript
-folders/{folderId} {
-  name: string,
-  path: string, // Full path like "/Grandma's Letters/Love Letters"
-  parent_folder_id: string | null,
-  family_group_id: string,
-  
-  // Folder customization
-  icon: string, // emoji or icon identifier
-  color: string, // hex color
-  description: string,
-  
-  // Auto-organization rules
-  auto_tag_rules: [{
-    condition: {
-      field: "author|date_range|content_match",
-      operator: "equals|contains|between",
-      value: any
-    },
-    action: {
-      add_tags: [string],
-      move_to_folder: string
-    }
-  }],
-  
-  // Permissions
-  permissions: {
-    can_add: [userId],
-    can_organize: [userId],
-    can_delete: [userId]
-  },
-  
-  // Stats
-  document_count: number,
-  photo_count: number,
-  total_duration_minutes: number,
-  last_modified: timestamp,
-  
-  created_at: timestamp,
-  created_by: userId
-}
-```
-
-#### Photos Collection
-```javascript
-photos/{photoId} {
-  user_id: string,
-  family_group_id: string,
-  
-  // Organization
-  folder_path: string,
-  collections: [collectionId],
-  
-  // Image data
-  image: {
-    storage_path: string,
-    thumbnail_path: string,
-    width: number,
-    height: number,
-    format: string,
-    size_bytes: number
-  },
-  
-  // Linking to documents/audio
-  linked_documents: [{
-    document_id: string,
-    page_number: number,
-    timestamp_seconds: number, // Link to specific audio moment
-    relationship: "illustration|reference|companion"
-  }],
-  
-  // Metadata
-  metadata: {
-    title: string,
-    description: string,
-    date_taken: date,
-    location: {
-      name: string,
-      coordinates: {lat: number, lng: number}
-    },
+#### Family Groups Table
+```sql
+CREATE TABLE family_groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    invite_code VARCHAR(10) UNIQUE,
     
-    // Same tagging system as documents
-    tags: {
-      people: [string],
-      topics: [string],
-      locations: [string],
-      time_periods: [string],
-      custom: [string]
-    },
+    -- Settings
+    auto_share_new_documents BOOLEAN DEFAULT false,
+    require_approval_for_edits BOOLEAN DEFAULT false,
     
-    // AI-detected features
-    detected_faces: [{
-      person_id: string,
-      confidence: number,
-      boundingBox: {x: number, y: number, width: number, height: number}
-    }],
-    detected_text: string, // Any text in the photo
-    scene_description: string
-  },
-  
-  // Audio narration (optional)
-  narration: {
-    audio_path: string,
-    duration_seconds: number,
-    transcript: string,
-    narrator_id: userId
-  },
-  
-  sharing: {
-    visibility: "private|family|public",
-    shared_with: [userId]
-  },
-  
-  created_at: timestamp,
-  updated_at: timestamp
-}
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE family_members (
+    family_group_id UUID REFERENCES family_groups(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) CHECK (role IN ('admin', 'member')),
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (family_group_id, user_id)
+);
+
+CREATE INDEX idx_family_groups_owner ON family_groups(owner_id);
+CREATE INDEX idx_family_groups_invite ON family_groups(invite_code);
+```
+
+#### Folders Table
+```sql
+CREATE TABLE folders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    path VARCHAR(1000) NOT NULL,
+    parent_folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
+    family_group_id UUID REFERENCES family_groups(id) ON DELETE CASCADE,
+    
+    -- Customization
+    icon VARCHAR(50),
+    color VARCHAR(7), -- Hex color
+    description TEXT,
+    
+    -- Auto-organization rules stored as JSONB
+    auto_tag_rules JSONB,
+    
+    -- Stats (can be computed but cached for performance)
+    document_count INTEGER DEFAULT 0,
+    photo_count INTEGER DEFAULT 0,
+    total_duration_minutes DECIMAL(10,2) DEFAULT 0,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by UUID REFERENCES users(id),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Folder permissions
+CREATE TABLE folder_permissions (
+    folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    permission VARCHAR(20) CHECK (permission IN ('add', 'organize', 'delete')),
+    PRIMARY KEY (folder_id, user_id, permission)
+);
+
+CREATE INDEX idx_folders_path ON folders(path);
+CREATE INDEX idx_folders_family ON folders(family_group_id);
+```
+
+#### Photos Table
+```sql
+CREATE TABLE photos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    family_group_id UUID REFERENCES family_groups(id),
+    
+    -- Organization
+    folder_path VARCHAR(1000),
+    
+    -- Image data
+    image_s3_key VARCHAR(500) NOT NULL,
+    thumbnail_s3_key VARCHAR(500),
+    width INTEGER,
+    height INTEGER,
+    format VARCHAR(10),
+    size_bytes BIGINT,
+    
+    -- Metadata
+    title VARCHAR(500),
+    description TEXT,
+    date_taken DATE,
+    location_name VARCHAR(500),
+    location_lat DECIMAL(10,8),
+    location_lng DECIMAL(11,8),
+    
+    -- AI detection results
+    detected_text TEXT,
+    scene_description TEXT,
+    
+    -- Narration (optional)
+    narration_s3_key VARCHAR(500),
+    narration_duration_seconds DECIMAL(10,2),
+    narration_transcript TEXT,
+    narrator_id UUID REFERENCES users(id),
+    
+    -- Sharing
+    visibility VARCHAR(20) DEFAULT 'private' CHECK (visibility IN ('private', 'family', 'public')),
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Photo to document links
+CREATE TABLE photo_document_links (
+    photo_id UUID REFERENCES photos(id) ON DELETE CASCADE,
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    page_number INTEGER,
+    timestamp_seconds DECIMAL(10,2),
+    relationship VARCHAR(20) CHECK (relationship IN ('illustration', 'reference', 'companion')),
+    PRIMARY KEY (photo_id, document_id)
+);
+
+-- Photo tags (same structure as document tags)
+CREATE TABLE photo_tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    photo_id UUID REFERENCES photos(id) ON DELETE CASCADE,
+    tag_type VARCHAR(20) CHECK (tag_type IN ('people', 'topics', 'locations', 'time_periods', 'custom')),
+    tag_value VARCHAR(255),
+    confidence DECIMAL(3,2),
+    UNIQUE(photo_id, tag_type, tag_value)
+);
+
+-- Detected faces
+CREATE TABLE photo_faces (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    photo_id UUID REFERENCES photos(id) ON DELETE CASCADE,
+    person_name VARCHAR(255),
+    confidence DECIMAL(3,2),
+    bbox_x INTEGER,
+    bbox_y INTEGER,
+    bbox_width INTEGER,
+    bbox_height INTEGER
+);
+
+CREATE INDEX idx_photos_user ON photos(user_id);
+CREATE INDEX idx_photos_family ON photos(family_group_id);
+CREATE INDEX idx_photos_folder ON photos(folder_path);
 ```
 
 ### Local SQLite Schema
@@ -1137,31 +1260,264 @@ class SecurityManager {
    - Email with large "Join Family" button
    - Physical QR code cards for reunions
 
+## MVP Cost Analysis: Third-Party vs Self-Hosted
+
+### Option 1: Third-Party Services (MVP Approach)
+
+**OCR Services Cost Comparison**:
+```
+Google Cloud Vision API:
+- First 1,000 units/month: Free
+- 1,001-5,000,000 units/month: $1.50 per 1,000
+- Average: ~500 chars per document = ~$0.0015 per document
+
+AWS Textract:
+- $1.50 per 1,000 pages
+- Average: $0.0015 per document
+
+Azure Computer Vision:
+- $1.00 per 1,000 transactions
+- Average: $0.001 per document
+
+HandwritingOCR.com:
+- $30-300/month plans
+- API: ~$0.01 per page
+```
+
+**Text-to-Speech Cost Comparison**:
+```
+Google Cloud TTS:
+- First 1M chars/month: Free (Standard voices)
+- WaveNet voices: $16 per 1M chars
+- Average doc (2,000 chars): $0.032 per document
+
+Amazon Polly:
+- Standard: $4 per 1M chars
+- Neural: $16 per 1M chars
+- Average: $0.008-0.032 per document
+
+Azure Speech:
+- Standard: $4 per 1M chars
+- Neural: $16 per 1M chars
+```
+
+**MVP Monthly Cost Projection** (1,000 active users, 10 docs/user/month):
+- OCR: 10,000 docs × $0.002 = $20
+- TTS: 10,000 docs × $0.016 = $160
+- Storage (S3): ~$50
+- **Total: ~$230/month + infrastructure**
+
+### Option 2: Self-Hosted with Local PC
+
+**One-Time Setup**:
+- Already have powerful PC: $0
+- olmOCR setup: Free (open source)
+- TTS models: Free (open source)
+- Time investment: ~40 hours
+
+**Ongoing Costs**:
+- Electricity: ~$30/month
+- Internet bandwidth: Minimal additional
+- Maintenance time: ~5 hours/month
+- **Total: ~$30/month + time**
+
+### Recommendation for MVP
+
+**Start with Third-Party Services** for MVP because:
+1. **Faster Time to Market**: Launch in weeks vs months
+2. **Proven Reliability**: 99.9% uptime SLAs
+3. **No DevOps Overhead**: Focus on product-market fit
+4. **Scalable**: Handle unexpected viral growth
+5. **Low Initial Cost**: ~$230/month is manageable
+
+## Freemium Business Model
+
+### Tier Structure
+
+#### Free Tier (Forever Free)
+**Limits**:
+- 3 document scans per month
+- Standard quality OCR only
+- Basic TTS voices (robotic)
+- No family sharing
+- 7-day storage for audio files
+- Watermark on exports
+
+**Purpose**: Let users experience core value, create habit
+
+#### Premium Tier ($9.99/month or $79/year)
+**Features**:
+- Unlimited document scans
+- High-accuracy OCR with corrections
+- Premium natural voices
+- Family sharing (up to 5 members)
+- Unlimited cloud storage
+- Download audio files
+- Synchronized playback
+- Email/chat support
+
+**Target**: Individual users and small families
+
+#### Family Legacy Tier ($19.99/month or $179/year)
+**Everything in Premium plus**:
+- Unlimited family members
+- Voice cloning (preserve grandpa's voice)
+- Bulk scanning mode
+- API access
+- White-label sharing pages
+- Priority processing
+- Video tutorials for elderly
+- Phone support
+
+**Target**: Large families, family historians
+
+### Feature Comparison Implementation
+
+```rust
+#[derive(Debug, Clone)]
+pub struct UserTier {
+    pub tier: TierLevel,
+    pub limits: TierLimits,
+}
+
+#[derive(Debug, Clone)]
+pub struct TierLimits {
+    pub monthly_scans: Option<u32>,
+    pub family_members: Option<u32>,
+    pub storage_days: Option<u32>,
+    pub ocr_quality: OcrQuality,
+    pub voice_quality: VoiceQuality,
+    pub features: HashSet<Feature>,
+}
+
+impl TierLimits {
+    pub fn free() -> Self {
+        Self {
+            monthly_scans: Some(3),
+            family_members: Some(0),
+            storage_days: Some(7),
+            ocr_quality: OcrQuality::Basic,
+            voice_quality: VoiceQuality::Standard,
+            features: HashSet::new(),
+        }
+    }
+    
+    pub fn premium() -> Self {
+        Self {
+            monthly_scans: None, // Unlimited
+            family_members: Some(5),
+            storage_days: None, // Unlimited
+            ocr_quality: OcrQuality::Advanced,
+            voice_quality: VoiceQuality::Premium,
+            features: hashset![
+                Feature::FamilySharing,
+                Feature::Downloads,
+                Feature::SyncPlayback,
+                Feature::CloudStorage,
+            ],
+        }
+    }
+}
+
+// Middleware to check tier limits
+pub async fn check_tier_limits(
+    State(app_state): State<AppState>,
+    user: User,
+    request: Request,
+    next: Next,
+) -> Result<Response> {
+    let tier_limits = get_user_limits(&user);
+    
+    // Check monthly scan limit
+    if request.uri().path() == "/api/v1/documents/process" {
+        let monthly_scans = get_monthly_scan_count(&user).await?;
+        if let Some(limit) = tier_limits.monthly_scans {
+            if monthly_scans >= limit {
+                return Err(ApiError::TierLimitExceeded {
+                    limit_type: "monthly_scans",
+                    upgrade_url: "/pricing",
+                });
+            }
+        }
+    }
+    
+    Ok(next.run(request).await)
+}
+```
+
+### Conversion Strategy
+
+**Free → Premium Hooks**:
+1. Hit scan limit → "Unlock unlimited scans"
+2. Try to share → "Share with family members"
+3. Audio expires → "Keep your memories forever"
+4. Low quality voice → "Hear in natural voice"
+
+**Premium → Family Legacy Hooks**:
+1. Add 6th family member → "Add unlimited family"
+2. Want better quality → "Try voice cloning"
+3. Need bulk processing → "Save hours with bulk mode"
+
+**Migration Path**:
+```
+Months 1-3: Third-party services (validate market)
+Months 4-6: Hybrid approach (heavy users on local PC)
+Months 7+: Full self-hosted (once revenue justifies it)
+```
+
 ## Implementation Phases
 
-### Phase 1: MVP (Months 1-3)
-- Basic photo capture and OCR
-- Simple text-to-speech conversion
-- Local storage only
-- iOS launch
+### Phase 1: MVP with Rust Backend (Months 1-3)
+**Infrastructure**:
+- Rust Axum web server on VPS/Cloud
+- PostgreSQL database
+- Redis for caching and sessions
+- S3 (or S3-compatible) for file storage
+- Third-party OCR (Google Vision) and TTS APIs
+- Stripe for payments
 
-### Phase 2: Core Features (Months 4-6)
-- Cloud sync and backup
-- Family sharing
-- Android launch
-- Premium subscription
+**Architecture Setup**:
+```rust
+// Cargo.toml for MVP
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "migrate"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+aws-sdk-s3 = "1.5"
+stripe-rust = "0.13"
+reqwest = { version = "0.11", features = ["json"] }
+jsonwebtoken = "9.2"
+argon2 = "0.5"
+```
 
-### Phase 3: Enhancement (Months 7-9)
-- Multiple OCR engines
-- Voice customization
-- Collections and organization
-- Offline mode
+**Deployment**:
+- Single VPS or small Kubernetes cluster
+- Docker containers for easy deployment
+- GitHub Actions for CI/CD
+- Target: 1,000 beta users
 
-### Phase 4: Scale (Months 10-12)
-- B2B partnerships
-- Voice cloning beta
+### Phase 2: Hybrid Processing (Months 4-6)
+- Add RabbitMQ for job queue
+- Set up local PC worker for premium users
+- Implement tiered processing (free = cloud, premium = local)
+- Add monitoring and analytics
+- Cost reduction by 60%
+- Target: 10,000 users
+
+### Phase 3: Full Self-Hosted (Months 7-9)
+- Complete migration to olmOCR on local PC
+- Multiple worker machines for redundancy
+- Custom TTS models for better quality
+- Advanced caching strategies
+- Target: 50,000 users
+
+### Phase 4: Scale & Innovation (Months 10-12)
+- Distributed processing network
+- Voice cloning implementation
+- B2B API marketplace
 - International expansion
-- API for third-party integration
+- Target: 100,000+ users
 
 ## Monitoring and Analytics
 

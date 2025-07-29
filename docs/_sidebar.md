@@ -1,4 +1,5 @@
 - **Getting Started**
+  - [Project Overview](../README.md)
   - [Documentation Home](README.md)
   - [Setup Guide](SETUP.md)
   - [Architecture Overview](ARCHITECTURE.md)

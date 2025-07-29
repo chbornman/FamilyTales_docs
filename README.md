@@ -439,11 +439,23 @@ FamilyTales/
 - User data ownership guarantee
 - No selling of personal data
 
+## 📚 Documentation
+
+**📖 [View Complete Technical Documentation](https://chbornman.github.io/FamilyTales/)**
+
+Our comprehensive documentation includes:
+- 🎨 **Design System**: Brand guide, UI components, and audio UX
+- 🔧 **Development**: Setup, testing, debugging, and architecture
+- 📋 **Specifications**: API docs, database schema, and user flows  
+- 🚀 **Operations**: Deployment, monitoring, scaling, and security
+- 📅 **Sprint Plan**: 6-month development roadmap
+
 ## 📞 Contact
 
 For investment inquiries, partnership opportunities, or more information:
 - Email: info@familytales.app
 - Website: www.familytales.app (coming soon)
+- 📖 Documentation: https://chbornman.github.io/FamilyTales/
 
 ---
 

@@ -106,66 +106,120 @@ class OCREngine {
 }
 ```
 
-### 2. Text-to-Speech Engine & Mux Streaming
+### 2. Content Processing & Audio Generation
 
-**Primary Service**: Google Cloud Text-to-Speech with Mux Distribution
-- 380+ voices across 50+ languages
-- WaveNet and Neural2 voices for natural sound
-- SSML support for pronunciation customization
-- Mux handles all HLS streaming complexity
-
-**Voice Options**:
-- Standard voices for basic conversion
-- Premium WaveNet voices for emotional content
-- Voice cloning capability (future feature with ElevenLabs)
-
-**Audio Processing & Mux Integration**:
+**Concatenated Audio Architecture**:
 ```rust
-use mux_rust_sdk::{MuxClient, CreateAssetRequest};
-
-pub struct AudioProcessor {
+pub struct MemoryBookProcessor {
+    ocr_engine: Box<dyn OCREngine>,
     tts_client: GoogleTtsClient,
     mux_client: MuxClient,
 }
 
-impl AudioProcessor {
-    pub async fn process_document(&self, document: &Document) -> Result<MuxAsset> {
-        // Generate audio from text
-        let audio_data = self.tts_client
-            .synthesize(SynthesizeRequest {
-                text: &document.ocr_text,
-                voice: document.voice_settings,
-                audio_config: AudioConfig {
-                    audio_encoding: AudioEncoding::Mp3,
-                    speaking_rate: document.speed,
-                },
-            })
-            .await?;
+impl MemoryBookProcessor {
+    pub async fn process_memory_book(&self, book: &MemoryBook) -> Result<ProcessedBook> {
+        let mut segments = Vec::new();
+        let mut full_text = String::new();
+        let mut current_position = 0.0; // seconds
         
-        // Upload to Mux - they handle everything else
-        let asset = self.mux_client
-            .create_asset(CreateAssetRequest {
-                input: audio_data,
-                playback_policy: vec!["public"],
-                audio_only: true,
-                normalize_audio: true,
-                master_access: "temporary", // For downloads
-                mp4_support: "standard",
-            })
-            .await?;
+        // Process each content item in order
+        for item in &book.items {
+            match item {
+                ContentItem::HandwrittenDocument(doc) => {
+                    let ocr_result = self.ocr_engine.process(&doc.image).await?;
+                    let text = ocr_result.text;
+                    let text_length = text.len();
+                    
+                    segments.push(ContentSegment {
+                        id: doc.id,
+                        content_type: ContentType::HandwrittenText,
+                        original_url: doc.image_url,
+                        ocr_text: Some(text.clone()),
+                        timestamp_start: current_position,
+                        timestamp_end: 0.0, // Will be calculated after audio generation
+                        page_number: doc.page_number,
+                    });
+                    
+                    full_text.push_str(&text);
+                    full_text.push_str("\n\n"); // Natural pause between documents
+                }
+                ContentItem::DigitalDocument(doc) => {
+                    let text = self.extract_text(doc).await?;
+                    segments.push(ContentSegment {
+                        id: doc.id,
+                        content_type: ContentType::DigitalText,
+                        original_url: doc.file_url,
+                        ocr_text: Some(text.clone()),
+                        timestamp_start: current_position,
+                        timestamp_end: 0.0,
+                        page_number: doc.page_number,
+                    });
+                    
+                    full_text.push_str(&text);
+                    full_text.push_str("\n\n");
+                }
+                ContentItem::Image(img) => {
+                    // Images get timestamped but no text
+                    segments.push(ContentSegment {
+                        id: img.id,
+                        content_type: ContentType::Image,
+                        original_url: img.image_url,
+                        ocr_text: img.caption.clone(),
+                        timestamp_start: current_position,
+                        timestamp_end: current_position, // Same as start for images
+                        page_number: img.page_number,
+                    });
+                }
+            }
+        }
         
-        // Mux automatically creates:
-        // - HLS streams with multiple bitrates
-        // - Global CDN distribution
-        // - Playback URLs for each quality
+        // Generate single audio file from concatenated text
+        let audio = self.generate_audio(&full_text, &book.voice_settings).await?;
         
-        Ok(MuxAsset {
-            playback_id: asset.playback_ids[0].id,
-            hls_url: format!("https://stream.mux.com/{}.m3u8", asset.playback_ids[0].id),
-            download_url: asset.master_access_url,
-            duration: asset.duration,
+        // Calculate actual timestamps based on speech timing
+        self.calculate_timestamps(&mut segments, &audio.word_timings);
+        
+        // Upload to Mux
+        let mux_asset = self.upload_to_mux(audio).await?;
+        
+        Ok(ProcessedBook {
+            segments,
+            audio_url: mux_asset.hls_url,
+            total_duration: mux_asset.duration,
         })
     }
+}
+```
+
+**Multi-Format Input Support**:
+```rust
+pub enum ContentItem {
+    HandwrittenDocument {
+        id: Uuid,
+        image_url: String,
+        page_number: u32,
+    },
+    DigitalDocument {
+        id: Uuid,
+        file_url: String,
+        format: DocumentFormat,
+        page_number: u32,
+    },
+    Image {
+        id: Uuid,
+        image_url: String,
+        caption: Option<String>,
+        page_number: u32,
+    },
+}
+
+pub enum DocumentFormat {
+    PDF,
+    Word,
+    GoogleDocs,
+    PlainText,
+    EPUB,
+    HandwrittenImage,
 }
 ```
 
@@ -177,59 +231,147 @@ impl AudioProcessor {
 - **Analytics Included**: Track plays, completion rates, bandwidth usage
 - **Direct Playback URLs**: No need to manage streaming infrastructure
 
-### 3. Synchronized Playback System
+### 3. Three-View Experience System
 
-**Visual-Audio Synchronization**:
+**Modern Multi-Modal Viewer**:
 ```dart
-class SyncPlaybackEngine {
-  // Synchronized display of original document during audio playback
-  Future<SyncedPlayback> prepareSyncedContent(
-    Document document
-  ) async {
-    // Generate word-level timestamps
-    final wordTimings = await _generateWordTimings(
-      document.ocr.text,
-      document.audio.duration_seconds
-    );
-    
-    // Create visual highlights for each word/phrase
-    final visualMarkers = await _createVisualMarkers(
-      document.image,
-      document.ocr.boundingBoxes,
-      wordTimings
-    );
-    
-    // Prepare synchronized display data
-    return SyncedPlayback(
-      audioUrl: document.audio.hls_playlist_path,
-      imageUrl: document.image.storage_path,
-      syncData: SyncData(
-        wordTimings: wordTimings,
-        visualMarkers: visualMarkers,
-        pageBreaks: document.ocr.pageBreaks
-      )
+enum ViewMode {
+  original,  // Scanned images, PDFs, original format
+  text,      // OCR'd text in readable format
+  audio,     // Audio player with visual feedback
+}
+
+class MemoryBookViewer extends StatefulWidget {
+  final MemoryBook book;
+  final ViewMode initialMode;
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          // Swipeable view modes
+          TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.photo), text: 'Original'),
+              Tab(icon: Icon(Icons.text_fields), text: 'Text'),
+              Tab(icon: Icon(Icons.headphones), text: 'Audio'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                OriginalView(book: book),
+                TextView(book: book),
+                AudioView(book: book),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
-  
-  // Real-time highlight during playback
-  Widget buildSyncedView(SyncedPlayback playback) {
-    return AudioImageSync(
-      onTimeUpdate: (currentTime) {
-        // Highlight current word/line being read
-        _highlightCurrentText(currentTime);
-        // Pan/zoom to keep current text visible
-        _adjustViewport(currentTime);
-      }
+}
+
+// Original View - Shows scanned documents/images
+class OriginalView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return PhotoViewGallery.builder(
+      itemCount: book.segments.length,
+      builder: (context, index) {
+        final segment = book.segments[index];
+        return PhotoViewGalleryPageOptions(
+          imageProvider: NetworkImage(segment.original_url),
+          minScale: PhotoViewComputedScale.contained,
+          maxScale: PhotoViewComputedScale.covered * 3,
+        );
+      },
+      onPageChanged: (index) {
+        // Sync audio position if playing
+        if (audioPlayer.isPlaying) {
+          audioPlayer.seek(book.segments[index].timestamp_start);
+        }
+      },
+    );
+  }
+}
+
+// Text View - Clean, readable OCR text
+class TextView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scrollable(
+      child: SelectableText.rich(
+        TextSpan(
+          children: book.segments.map((segment) {
+            return TextSpan(
+              text: segment.ocr_text ?? '',
+              style: TextStyle(
+                fontSize: _userPreferredSize,
+                height: 1.6,
+                backgroundColor: _isCurrentSegment(segment) 
+                  ? Colors.yellow.withOpacity(0.3) 
+                  : null,
+              ),
+              recognizer: TapGestureRecognizer()
+                ..onTap = () => audioPlayer.seek(segment.timestamp_start),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+// Audio View - Visual audio player
+class AudioView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Current segment image
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: Duration(milliseconds: 300),
+            child: Image.network(
+              currentSegment.original_url,
+              key: ValueKey(currentSegment.id),
+            ),
+          ),
+        ),
+        // Waveform visualization
+        AudioWaveform(
+          audioUrl: book.audio_url,
+          segments: book.segments,
+          onSeek: (position) => audioPlayer.seek(position),
+        ),
+        // Playback controls
+        PlaybackControls(
+          onPlay: () => audioPlayer.play(),
+          onPause: () => audioPlayer.pause(),
+          onSkipToSegment: (segmentId) {
+            final segment = book.segments.firstWhere((s) => s.id == segmentId);
+            audioPlayer.seek(segment.timestamp_start);
+          },
+        ),
+        // Segment list
+        SegmentList(
+          segments: book.segments,
+          currentSegment: currentSegment,
+          onTap: (segment) => audioPlayer.seek(segment.timestamp_start),
+        ),
+      ],
     );
   }
 }
 ```
 
 **Key Features**:
-- **Follow-Along Reading**: Highlighted text moves with audio playback
-- **Smart Viewport**: Auto-pan and zoom to keep current text visible
-- **Manual Override**: Users can zoom/pan while audio continues
-- **Error Recovery**: Visual cues when OCR text doesn't match audio
+- **Seamless Switching**: Swipe between views without losing position
+- **Synchronized Navigation**: Jump to same content across all views
+- **Accessibility**: Each view optimized for different needs
+- **Modern UX**: Follows Material/iOS design patterns
 
 ### 4. Document Management System
 
@@ -637,6 +779,151 @@ ws://api.familytales.app/ws/ocr/{documentId}
 }
 ```
 
+## Content Organization Model
+
+### Flexible Collection Structure
+
+The key architectural decision is to support both simple and complex use cases through a "Memory Book → Thread → Segment" hierarchy:
+
+```rust
+// A Memory Book can contain multiple Threads (narrative sections)
+// Each Thread is a cohesive audio file with its own segments
+
+pub struct MemoryBook {
+    pub id: Uuid,
+    pub family_id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub threads: Vec<Thread>,
+    pub cover_image_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub settings: BookSettings,
+}
+
+pub struct Thread {
+    pub id: Uuid,
+    pub book_id: Uuid,
+    pub title: String,              // e.g., "Letters from War", "Recipe Collection"
+    pub sequence_number: i32,       // Order within the book
+    pub audio_url: String,          // Single concatenated audio file
+    pub total_duration: f64,
+    pub segments: Vec<ContentSegment>,
+    pub narrator_voice: VoiceSettings,
+}
+
+pub struct ContentSegment {
+    pub id: Uuid,
+    pub thread_id: Uuid,
+    pub sequence_number: i32,       // Order within thread
+    pub content_type: ContentType,
+    pub original_url: String,       // Image/PDF page URL
+    pub ocr_text: Option<String>,
+    pub timestamp_start: f64,       // Position in thread audio
+    pub timestamp_end: f64,
+    pub metadata: SegmentMetadata,
+}
+```
+
+### Organization Benefits
+
+1. **Maximum Flexibility**
+   - Single thread = Simple audio book (most common use case)
+   - Multiple threads = Organized sections (advanced users)
+   - Mix content types within threads
+
+2. **Natural Groupings**
+   - "Dad's War Letters" (Thread 1)
+   - "Mom's Recipes" (Thread 2)  
+   - "Family Photos & Stories" (Thread 3)
+
+3. **Print-Ready Structure**
+   - Each thread becomes a chapter
+   - Table of contents with page numbers
+   - QR code links to specific thread timestamps
+
+4. **Progressive Complexity**
+   - Start simple: One book = one thread
+   - Grow naturally: Add threads as needed
+   - AI suggestions: "These letters seem related..."
+
+### Example Use Cases
+
+#### Simple Use Case: "Grandma's Letters"
+```
+Memory Book: "Grandma's Letters"
+└── Thread 1: "All Letters" (single audio file)
+    ├── Segment 1: Letter from 1943
+    ├── Segment 2: Letter from 1944
+    └── Segment 3: Letter from 1945
+```
+
+#### Complex Use Case: "Family Heritage Collection"
+```
+Memory Book: "Smith Family Heritage"
+├── Thread 1: "Grandpa's War Years" (15 min audio)
+│   ├── Segment 1: Enlistment letter
+│   ├── Segment 2: Letters from France
+│   └── Segment 3: Victory announcement
+├── Thread 2: "Grandma's Recipes" (8 min audio)
+│   ├── Segment 1: Handwritten recipe cards
+│   └── Segment 2: Recipe notes and stories
+└── Thread 3: "Family Photos & Captions" (12 min audio)
+    ├── Segment 1: Wedding photo description
+    └── Segment 2: Baby photos with notes
+```
+
+#### Recipe Collection Use Case: "Grandma's Fixin's"
+```
+Memory Book: "Grandma's Southern Kitchen" (Perfect Christmas Gift!)
+├── Thread 1: "Holiday Favorites" (12 min audio)
+│   ├── Segment 1: Famous Pecan Pie (with her secret ingredient notes)
+│   ├── Segment 2: Christmas Morning Cinnamon Rolls
+│   └── Segment 3: Thanksgiving Cornbread Dressing
+├── Thread 2: "Sunday Suppers" (10 min audio)
+│   ├── Segment 1: Fried Chicken & Gravy
+│   ├── Segment 2: Buttermilk Biscuits
+│   └── Segment 3: Green Bean Casserole
+├── Thread 3: "Sweet Treats" (8 min audio)
+│   ├── Segment 1: Chocolate Chess Pie
+│   ├── Segment 2: Tea Cakes
+│   └── Segment 3: Blackberry Cobbler
+└── Thread 4: "Family Stories Behind the Food" (15 min audio)
+    ├── Segment 1: How she learned from her mother
+    ├── Segment 2: Feeding the farmhands stories
+    └── Segment 3: Sunday dinner traditions
+```
+
+### Recipe-Specific Features
+
+1. **Recipe Mode Processing**
+   ```rust
+   pub struct RecipeProcessor {
+       // Special OCR training for common recipe terms
+       // Handles fractions, measurements, temperatures
+       ocr_engine: RecipeOptimizedOCR,
+       
+       // Recipe-specific voice narration
+       voice_settings: RecipeVoiceSettings {
+           pace: "slower_for_ingredients",
+           emphasis: "measurements_and_timing",
+           pauses: "after_each_step"
+       }
+   }
+   ```
+
+2. **Print-Ready Recipe Books**
+   - Professional cookbook layout
+   - Original handwriting alongside typed version
+   - QR codes for audio cooking instructions
+   - Spiral binding option for kitchen use
+   - Laminated pages available
+
+3. **Marketing Angles**
+   - "Give the gift of Grandma's cooking this Christmas"
+   - "Turn recipe cards into a family cookbook"
+   - Mother's Day special: "Mom's Kitchen Memories"
+   - "Preserve the secret ingredients and stories"
+
 ## Database Schema
 
 ### PostgreSQL Schema
@@ -653,7 +940,9 @@ CREATE TABLE users (
     default_voice VARCHAR(50),
     default_language VARCHAR(10) DEFAULT 'en',
     auto_enhance_images BOOLEAN DEFAULT true,
-    default_family_id UUID, -- Which family to show by default
+    
+    -- Current/default family toggle
+    current_family_id UUID, -- Which family context they're viewing
     
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -665,8 +954,6 @@ CREATE TABLE users (
 CREATE TABLE families (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL, -- "The Smith Family"
-    admin_user_id UUID, -- Who manages subscription
-    invite_code VARCHAR(10) UNIQUE,
     
     -- Subscription info (ONE per family)
     subscription_tier VARCHAR(20) DEFAULT 'free_trial',
@@ -692,106 +979,234 @@ CREATE TABLE families (
 CREATE TABLE family_members (
     family_id UUID REFERENCES families(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(20) CHECK (role IN ('admin', 'member')),
+    role VARCHAR(20) CHECK (role IN ('owner', 'admin', 'member')),
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     invited_by UUID REFERENCES users(id),
     PRIMARY KEY (family_id, user_id)
 );
 
--- Add foreign key after tables exist
-ALTER TABLE families ADD CONSTRAINT fk_admin_user 
-    FOREIGN KEY (admin_user_id) REFERENCES users(id);
-ALTER TABLE users ADD CONSTRAINT fk_default_family
-    FOREIGN KEY (default_family_id) REFERENCES families(id);
-
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_families_admin ON families(admin_user_id);
-CREATE INDEX idx_families_invite ON families(invite_code);
-CREATE INDEX idx_family_members_user ON family_members(user_id);
-```
-
-#### Documents Table
-```sql
-CREATE TABLE documents (
+-- Memory Books (the collections)
+CREATE TABLE memory_books (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     family_id UUID REFERENCES families(id) ON DELETE CASCADE,
-    type VARCHAR(20) CHECK (type IN ('letter', 'memoir', 'journal', 'recipe', 'photo_annotation')),
-    status VARCHAR(20) DEFAULT 'uploading' CHECK (status IN ('uploading', 'processing', 'ready', 'error')),
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    cover_image_url VARCHAR(500),
     
-    -- Organization
-    folder_path VARCHAR(500),
+    -- Settings
+    auto_organize BOOLEAN DEFAULT false, -- AI suggests thread groupings
+    sharing_enabled BOOLEAN DEFAULT true,
+    print_ready BOOLEAN DEFAULT false,
+    default_voice VARCHAR(50),
     
-    -- Image data (stored in Mux)
-    image_mux_asset_id VARCHAR(255),
-    image_mux_playback_id VARCHAR(255),
-    image_width INTEGER,
-    image_height INTEGER,
-    image_size_bytes BIGINT,
-    
-    -- OCR results
-    ocr_text TEXT,
-    ocr_confidence DECIMAL(3,2),
-    ocr_language VARCHAR(10),
-    ocr_processing_time_ms INTEGER,
-    ocr_engine VARCHAR(50),
-    ocr_bounding_boxes JSONB, -- Array of word boundaries
-    ocr_page_breaks INTEGER[], -- Character positions
-    
-    -- Audio data (Mux handles all streaming)
-    audio_mux_asset_id VARCHAR(255),
-    audio_mux_playback_id VARCHAR(255),
-    audio_duration_seconds DECIMAL(10,2),
-    audio_voice_id VARCHAR(50),
-    audio_mux_download_url TEXT,
-    audio_size_bytes BIGINT,
-    
-    -- Metadata
-    title VARCHAR(500),
-    author VARCHAR(255),
-    recipient VARCHAR(255),
-    date_written DATE,
-    
-    -- Sharing
-    visibility VARCHAR(20) DEFAULT 'private' CHECK (visibility IN ('private', 'family', 'public')),
-    share_link VARCHAR(100) UNIQUE,
-    download_allowed BOOLEAN DEFAULT true,
-    listen_count INTEGER DEFAULT 0,
-    
+    created_by UUID REFERENCES users(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Separate tables for many-to-many relationships
-CREATE TABLE document_collections (
-    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-    collection_id UUID REFERENCES collections(id) ON DELETE CASCADE,
-    added_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (document_id, collection_id)
+-- Threads (audio narratives within books)
+CREATE TABLE threads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    book_id UUID REFERENCES memory_books(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    sequence_number INTEGER NOT NULL,
+    
+    -- Audio information
+    audio_mux_asset_id VARCHAR(255),
+    audio_url VARCHAR(500),
+    total_duration DECIMAL(10,3), -- seconds
+    
+    -- Voice settings for this thread
+    voice_id VARCHAR(50),
+    voice_speed DECIMAL(3,2) DEFAULT 1.0,
+    voice_pitch DECIMAL(3,2) DEFAULT 1.0,
+    
+    processing_status VARCHAR(50) DEFAULT 'pending',
+    processing_started_at TIMESTAMPTZ,
+    processing_completed_at TIMESTAMPTZ,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(book_id, sequence_number)
 );
 
-CREATE TABLE document_tags (
+-- Content Segments (individual items within threads)
+CREATE TABLE content_segments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-    tag_type VARCHAR(20) CHECK (tag_type IN ('people', 'topics', 'locations', 'time_periods', 'custom')),
-    tag_value VARCHAR(255),
-    confidence DECIMAL(3,2),
-    UNIQUE(document_id, tag_type, tag_value)
+    thread_id UUID REFERENCES threads(id) ON DELETE CASCADE,
+    sequence_number INTEGER NOT NULL,
+    
+    -- Content type and source
+    content_type VARCHAR(30) CHECK (content_type IN (
+        'handwritten_document', 'typed_document', 'photo', 'recipe', 'mixed'
+    )),
+    source_format VARCHAR(20), -- PDF, JPEG, PNG, DOCX, etc.
+    
+    -- Original content (stored in Mux)
+    original_mux_asset_id VARCHAR(255),
+    original_url VARCHAR(500), -- Direct playback URL
+    
+    -- OCR/Text extraction
+    ocr_text TEXT,
+    ocr_confidence DECIMAL(3,2),
+    ocr_method VARCHAR(50), -- google_vision, olmocr, pdf_extract, etc.
+    
+    -- Position in audio
+    timestamp_start DECIMAL(10,3) NOT NULL, -- seconds
+    timestamp_end DECIMAL(10,3) NOT NULL,
+    
+    -- Metadata
+    title VARCHAR(500),
+    page_number INTEGER, -- For multi-page documents
+    date_written DATE,
+    author VARCHAR(255),
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(thread_id, sequence_number)
 );
 
-CREATE TABLE document_corrections (
+-- Family invites
+CREATE TABLE family_invites (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-    original_text TEXT,
-    corrected_text TEXT,
-    position_start INTEGER,
-    position_end INTEGER,
-    corrected_by UUID REFERENCES users(id),
+    family_id UUID REFERENCES families(id) ON DELETE CASCADE,
+    invite_code VARCHAR(10) UNIQUE,
+    email VARCHAR(255), -- Optional: specific email invite
+    created_by UUID REFERENCES users(id),
+    expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
+    used_at TIMESTAMPTZ,
+    used_by UUID REFERENCES users(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE document_shares (
-    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+-- Add foreign key constraints
+ALTER TABLE users ADD CONSTRAINT fk_current_family
+    FOREIGN KEY (current_family_id) REFERENCES families(id);
+
+-- Indexes for performance
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_family_members_user ON family_members(user_id);
+CREATE INDEX idx_memory_books_family ON memory_books(family_id);
+CREATE INDEX idx_threads_book ON threads(book_id);
+CREATE INDEX idx_segments_thread ON content_segments(thread_id);
+CREATE INDEX idx_segments_timestamp ON content_segments(thread_id, timestamp_start);
+CREATE INDEX idx_invites_code ON family_invites(invite_code);
+CREATE INDEX idx_invites_family ON family_invites(family_id);
+```
+
+## Multiple Input Format Support
+
+### Supported Formats
+
+FamilyTales processes various document types to accommodate all family memory formats:
+
+```rust
+pub enum SupportedFormat {
+    // Images
+    JPEG,
+    PNG,
+    HEIC,    // iOS photos
+    WEBP,
+    
+    // Documents
+    PDF,     // Scanned documents, multi-page support
+    DOCX,    // Modern Word documents
+    DOC,     // Legacy Word documents
+    TXT,     // Plain text files
+    RTF,     // Rich text format
+    
+    // Specialized
+    RECIPE,  // Auto-detected recipe cards
+    LETTER,  // Auto-detected handwritten letters
+}
+
+pub struct FormatProcessor {
+    pub async fn process_document(&self, file: UploadedFile) -> Result<ProcessedContent> {
+        match file.format {
+            // Direct image processing
+            JPEG | PNG | HEIC | WEBP => {
+                let image = self.normalize_image(file).await?;
+                self.extract_text_from_image(image).await
+            }
+            
+            // Multi-page document handling
+            PDF => {
+                let pages = self.extract_pdf_pages(file).await?;
+                let mut segments = Vec::new();
+                
+                for (idx, page) in pages.iter().enumerate() {
+                    let text = if page.is_scanned_image() {
+                        self.extract_text_from_image(page.to_image()).await?
+                    } else {
+                        page.extract_embedded_text()?
+                    };
+                    
+                    segments.push(ContentSegment {
+                        page_number: idx + 1,
+                        ocr_text: text,
+                        ..Default::default()
+                    });
+                }
+                
+                Ok(ProcessedContent { segments })
+            }
+            
+            // Word documents
+            DOCX | DOC => {
+                let text = self.extract_word_text(file).await?;
+                let images = self.extract_word_images(file).await?;
+                self.create_mixed_content(text, images)
+            }
+            
+            // Recipe-specific processing
+            RECIPE => {
+                let recipe = self.recipe_processor.extract_recipe(file).await?;
+                Ok(ProcessedContent {
+                    segments: vec![ContentSegment {
+                        ocr_text: recipe.formatted_text(),
+                        metadata: recipe.ingredients_and_steps(),
+                        content_type: ContentType::Recipe,
+                        ..Default::default()
+                    }]
+                })
+            }
+            
+            _ => self.default_processor.process(file).await
+        }
+    }
+}
+```
+
+### Smart Format Detection
+
+```rust
+impl FormatDetector {
+    pub fn detect_content_type(&self, file: &UploadedFile) -> ContentType {
+        // Check file extension first
+        let content_type = match file.extension.to_lowercase().as_str() {
+            "jpg" | "jpeg" | "png" | "heic" => {
+                // Analyze image content
+                if self.looks_like_recipe(&file.preview) {
+                    ContentType::Recipe
+                } else if self.looks_like_letter(&file.preview) {
+                    ContentType::HandwrittenDocument
+                } else {
+                    ContentType::Photo
+                }
+            }
+            "pdf" => ContentType::TypedDocument,
+            "docx" | "doc" => ContentType::TypedDocument,
+            _ => ContentType::Mixed
+        };
+        
+        content_type
+    }
+    
+    fn looks_like_recipe(&self, preview: &ImagePreview) -> bool {
+        // ML model trained on recipe cards
+        // Looks for: ingredient lists, measurements, cooking terms
+        self.recipe_classifier.predict(preview) > 0.8
+    }
+}
+```
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     shared_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (document_id, user_id)

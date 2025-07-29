@@ -16,8 +16,13 @@
   <!-- Custom styles -->
   <style>
     :root {
-      --theme-color: #2563eb;
-      --theme-color-secondary: #1d4ed8;
+      --theme-color: #8B4513;  /* Warm Brown from brand guide */
+      --theme-color-secondary: #D4A574;  /* Warm Amber from brand guide */
+      --book-white: #FDFCFA;  /* Book White background */
+    }
+    
+    body {
+      background-color: var(--book-white);
     }
     
     .app-name-link img {
@@ -189,11 +194,11 @@
         initialize: {
           theme: 'default',
           themeVariables: {
-            primaryColor: '#2563eb',
+            primaryColor: '#8B4513',
             primaryTextColor: '#1f2937',
-            primaryBorderColor: '#3b82f6',
+            primaryBorderColor: '#D4A574',
             lineColor: '#6b7280',
-            secondaryColor: '#f3f4f6',
+            secondaryColor: '#FDFCFA',
             tertiaryColor: '#ffffff'
           }
         }

@@ -6,10 +6,11 @@ Welcome to the comprehensive documentation for FamilyTales - the platform that t
 
 ### Getting Started
 
+- **[Sprint Plan](SPRINTS.md)** - Detailed development sprints with AI-agent-friendly task breakdown
 - **[MVP Requirements](MVP_REQUIREMENTS.md)** - **Read First** - Clear MVP scope and boundaries
 - **[Setup Guide](SETUP.md)** - Complete development environment setup
 - **[Architecture Overview](ARCHITECTURE.md)** - High-level system architecture and design decisions
-- **[User Flows](USER_FLOWS.md)** - Complete user journey documentation
+- **[MVP User Flows](MVP_USER_FLOWS.md)** - Complete user journey documentation for MVP features
 
 ### Development
 

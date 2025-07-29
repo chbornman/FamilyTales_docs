@@ -14,96 +14,119 @@
 
 ## Executive Summary
 
-FamilyTales is a mobile application that converts handwritten documents (letters, memoirs, journals) into high-quality audio format, targeting the $50M market opportunity at the intersection of genealogy, digital preservation, and accessibility. The architecture leverages Flutter for cross-platform mobile development, Google's ML Kit for on-device OCR processing, and cloud-based text-to-speech services for audio generation.
+FamilyTales is a cross-platform application that converts handwritten documents (letters, memoirs, journals) into high-quality audio format with instant global family sharing. The architecture leverages Flutter for iOS/Android/Web/Desktop development, self-hosted olmOCR for privacy-focused text recognition, and HLS streaming for efficient audio distribution to family members worldwide.
 
 ### Key Architecture Principles
-- **Privacy-First**: On-device OCR processing for sensitive family documents
-- **Offline-First**: Core functionality available without internet connectivity
-- **Scalable**: Cloud infrastructure for compute-intensive operations
-- **Modular**: Microservices architecture for independent scaling
-- **Secure**: End-to-end encryption for document storage and transmission
+- **Privacy-First**: Self-hosted olmOCR keeps all document processing in-house
+- **One-Scan-Many-Listen**: Single family member scans, entire family enjoys instantly via HLS streaming
+- **Global Family Connectivity**: Smart CDN distribution with offline download support
+- **Collaborative Intelligence**: Family members help improve OCR accuracy together
+- **Easy Onboarding**: QR codes, simple invite links, and progressive account creation
 
 ## System Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Mobile Application                        │
-│                     (Flutter - iOS/Android)                      │
+│                     Client Applications                          │
+│            (Flutter - iOS/Android/Web/Desktop)                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                          Core Services                           │
 ├──────────────────┬──────────────────┬──────────────────────────┤
-│   OCR Engine     │  Audio Engine    │    Storage Service       │
-│  (Google ML Kit) │   (TTS APIs)     │  (Local + Cloud)         │
+│   OCR Engine     │  Audio Engine    │    Streaming Service     │
+│ (Self-hosted     │   (TTS + HLS)    │  (CDN + Edge Cache)      │
+│    olmOCR)       │                  │                          │
 ├──────────────────┴──────────────────┴──────────────────────────┤
 │                      Backend Services                            │
 │                   (Google Cloud Platform)                        │
 ├──────────────────┬──────────────────┬──────────────────────────┤
 │   API Gateway    │  Microservices   │   Database Layer         │
 │  (Cloud Endpoints)│  (Cloud Run)     │  (Firestore + Storage)   │
-└──────────────────┴──────────────────┴──────────────────────────┘
+├──────────────────┴──────────────────┴──────────────────────────┤
+│                    Self-Hosted Infrastructure                    │
+│                        (olmOCR Server Farm)                      │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### High-Level Data Flow
 
 1. **Document Capture**: User photographs handwritten document
-2. **Pre-processing**: Image enhancement and optimization
-3. **OCR Processing**: On-device text extraction using Google ML Kit
+2. **Pre-processing**: Image enhancement and optimization  
+3. **OCR Processing**: Secure upload to self-hosted olmOCR server
 4. **Text Verification**: User reviews and corrects OCR output
-5. **Audio Generation**: Cloud-based TTS conversion
-6. **Storage & Playback**: Secure storage with streaming capabilities
+5. **Audio Generation**: Cloud-based TTS conversion with HLS segmentation
+6. **Global Distribution**: 
+   - HLS streams uploaded to CDN
+   - Family members notified instantly
+   - Audio available for streaming or download
+7. **Flexible Playback**:
+   - Stream via HLS for instant access
+   - Download for offline playback
+   - Automatic quality adjustment based on connection
 
 ## Core Components
 
 ### 1. OCR Engine
 
-**Primary Technology**: Google ML Kit Text Recognition v2
-- On-device processing for privacy and speed
-- Support for 50+ languages including cursive scripts
-- Confidence scoring for accuracy assessment
+**Primary Technology**: Self-hosted olmOCR
+- Dedicated on-premise OCR server for maximum privacy
+- Optimized for handwritten document recognition
+- No data leaves our infrastructure
+- Customizable training for family-specific handwriting patterns
 
-**Fallback Options**:
-- Cloud Vision API for complex documents
-- Tesseract OCR for offline-only mode
-- Manual transcription service integration
+**Architecture Benefits**:
+- Complete data sovereignty
+- No per-request costs
+- Ability to fine-tune models on user corrections
+- Consistent performance without API rate limits
 
 **Key Features**:
 ```dart
 class OCREngine {
-  // Multi-engine approach for maximum accuracy
+  // Self-hosted olmOCR with intelligent routing
   Future<OCRResult> processImage(ImageFile image) async {
-    // Primary: ML Kit on-device
-    final mlKitResult = await _processWithMLKit(image);
+    // Upload to our olmOCR server
+    final olmResult = await _processWithOlmOCR(image);
     
-    // If confidence < threshold, use cloud backup
-    if (mlKitResult.confidence < 0.7) {
-      return await _processWithCloudVision(image);
+    // Apply family-specific model if available
+    if (await _hasFamilyModel(userId)) {
+      return await _enhanceWithFamilyModel(olmResult, userId);
     }
     
-    return mlKitResult;
+    return olmResult;
+  }
+  
+  // Train family-specific models from corrections
+  Future<void> updateFamilyModel(String userId, List<Correction> corrections) async {
+    await _olmOCRService.trainModel(
+      modelId: 'family_$userId',
+      trainingData: corrections
+    );
   }
 }
 ```
 
-### 2. Text-to-Speech Engine
+### 2. Text-to-Speech Engine & HLS Streaming
 
-**Primary Service**: Google Cloud Text-to-Speech
+**Primary Service**: Google Cloud Text-to-Speech with HLS Distribution
 - 380+ voices across 50+ languages
 - WaveNet and Neural2 voices for natural sound
 - SSML support for pronunciation customization
+- HLS (HTTP Live Streaming) for instant family sharing
 
 **Voice Options**:
 - Standard voices for basic conversion
 - Premium WaveNet voices for emotional content
 - Voice cloning capability (future feature with ElevenLabs)
 
-**Audio Processing Pipeline**:
+**Audio Processing & Streaming Pipeline**:
 ```dart
 class AudioEngine {
-  // Configurable voice settings per document type
-  Future<AudioFile> generateAudio(
+  // Generate audio and prepare for HLS streaming
+  Future<StreamableAudio> generateAndStream(
     String text, 
     VoiceSettings settings,
-    DocumentType type
+    DocumentType type,
+    List<String> familyMemberIds
   ) async {
     // Apply document-specific processing
     final processedText = await _preprocessText(text, type);
@@ -116,8 +139,30 @@ class AudioEngine {
       pitch: settings.pitch
     );
     
-    // Post-process for optimal quality
-    return await _enhanceAudio(audio);
+    // Convert to HLS format for streaming
+    final hlsSegments = await _convertToHLS(audio);
+    
+    // Upload to CDN for global family access
+    final streamUrl = await _uploadToCDN(hlsSegments);
+    
+    // Notify family members across the globe
+    await _notifyFamilyMembers(familyMemberIds, streamUrl);
+    
+    return StreamableAudio(
+      streamUrl: streamUrl,
+      duration: audio.duration,
+      format: 'HLS'
+    );
+  }
+  
+  // HLS conversion for adaptive streaming
+  Future<HLSSegments> _convertToHLS(AudioFile audio) async {
+    return await _hlsService.segment(
+      audio: audio,
+      segmentDuration: 10, // 10-second segments
+      bitrates: [64, 128, 192], // Multiple quality levels
+      encryption: true // Encrypted segments for privacy
+    );
   }
 }
 ```
@@ -128,39 +173,106 @@ class AudioEngine {
 - Document categorization (letters, memoirs, journals)
 - Metadata extraction (dates, recipients, authors)
 - Version control for corrections
-- Family sharing capabilities
+- Real-time family sharing across continents
+- One-scan-many-listen architecture
+
+**Geographic Family Sharing**:
+- **Instant Global Access**: One family member scans in USA, relatives in Europe/Asia listen immediately
+- **Smart CDN Distribution**: Audio files cached at edge locations near family members
+- **Time Zone Aware Notifications**: Respectful alerts based on recipient's local time
+- **Live Listening Sessions**: Family members can listen together with synchronized playback
 
 **Storage Architecture**:
 - Local SQLite for offline access
-- Cloud Firestore for sync and backup
-- Cloud Storage for images and audio files
-- CDN for global audio streaming
+- Cloud Firestore for real-time sync
+- Cloud Storage for images and master audio files
+- Global CDN with HLS streaming for instant playback
+- Edge caching in regions where family members are located
+
+### 4. Family Sharing Architecture
+
+**One-Scan-Many-Listen Model**:
+```dart
+class FamilySharingService {
+  // Scan once, share with entire family instantly
+  Future<void> shareWithFamily(
+    Document document,
+    String familyGroupId
+  ) async {
+    // Get all family members and their locations
+    final members = await _getFamilyMembers(familyGroupId);
+    final memberLocations = await _getMemberLocations(members);
+    
+    // Pre-cache content at edge locations
+    await _preCacheAtEdgeLocations(
+      document.audioUrl,
+      memberLocations
+    );
+    
+    // Notify based on time zones
+    await _smartNotify(members, document);
+    
+    // Enable offline download permissions
+    await _enableOfflineAccess(members, document);
+  }
+  
+  // Smart download management
+  Future<void> downloadForOffline(
+    Document document,
+    User user
+  ) async {
+    // Download appropriate quality based on device storage
+    final quality = await _determineOptimalQuality(user.device);
+    
+    // Download with progress tracking
+    await _downloadManager.download(
+      url: document.getHLSVariant(quality),
+      onProgress: (progress) => _updateUI(progress)
+    );
+    
+    // Encrypt for local storage
+    await _encryptForOfflineStorage(document, user);
+  }
+}
+```
+
+**Geographic Distribution Features**:
+- **Smart Pre-caching**: Content cached near family members before they access
+- **Bandwidth Optimization**: Lower quality for mobile data, high quality for WiFi
+- **Offline Sync**: Downloaded content syncs playback position across devices
+- **Family Analytics**: See who's listened and from where (privacy-respecting)
 
 ## Technology Stack
 
 ### Mobile Application
 
 **Framework**: Flutter 3.x
-- Single codebase for iOS and Android
+- Single codebase for iOS, Android, Web, and Desktop
 - Native performance with platform-specific optimizations
 - Rich widget library for elderly-friendly UI
+- PWA support for instant web access
 
 **Key Dependencies**:
 ```yaml
 dependencies:
   # Core functionality
-  google_mlkit_text_recognition: ^0.11.0
   camera: ^0.10.5
   image_picker: ^1.0.4
+  http: ^1.1.0  # For olmOCR API calls
   
-  # Audio handling
-  just_audio: ^0.9.34
-  audio_service: ^0.18.10
+  # Audio handling with HLS support
+  just_audio: ^0.9.34  # Native HLS support on iOS/Android/Web
+  audio_service: ^0.18.10  # Background playback
+  just_audio_background: ^0.0.1  # Background audio metadata
   
   # Storage and sync
   sqflite: ^2.3.0
   cloud_firestore: ^4.13.0
   firebase_storage: ^11.5.0
+  
+  # Real-time family features
+  firebase_messaging: ^14.7.0  # Push notifications
+  web_socket_channel: ^2.4.0  # Live listening sessions
   
   # UI/UX
   provider: ^6.1.0
@@ -266,16 +378,51 @@ Body: {
 
 #### Family Sharing API
 ```http
-# Invite family member
-POST /family/invites
+# Create family invite link (no email required)
+POST /family/invites/create-link
 Body: {
-  email: "string",
-  role: "viewer|editor|admin",
-  collections: ["collectionId1", "collectionId2"]
+  expires_in_days: 7,
+  max_uses: 10,
+  role: "viewer|editor|admin"
+}
+Response: {
+  invite_link: "https://familytales.app/join/ABC123",
+  qr_code: "base64_image",
+  share_message: "Join our family on FamilyTales!"
 }
 
-# Accept invitation
-POST /family/invites/{inviteId}/accept
+# Join via invite link/code
+POST /family/join
+Body: {
+  invite_code: "ABC123"
+}
+
+# Share app with family (deep link to app store + invite)
+POST /family/share-app
+Body: {
+  method: "sms|email|whatsapp",
+  recipient: "phone_or_email",
+  include_invite: true
+}
+Response: {
+  share_link: "https://familytales.app/get?family=ABC123",
+  message: "Grandma shared family memories with you! Download FamilyTales to listen: [link]"
+}
+
+# Get HLS stream for document
+GET /documents/{documentId}/stream.m3u8
+Response: HLS playlist file
+
+# Download for offline
+POST /documents/{documentId}/download
+Body: {
+  quality: "low|medium|high"
+}
+Response: {
+  download_url: "signed_url",
+  expires_at: "ISO8601",
+  file_size_mb: 12.5
+}
 ```
 
 ### WebSocket API for Real-time Updates
@@ -327,8 +474,12 @@ users/{userId} {
 ```javascript
 documents/{documentId} {
   user_id: string,
-  type: "letter|memoir|journal",
+  type: "letter|memoir|journal|recipe|photo_annotation",
   status: "uploading|processing|ready|error",
+  
+  // Organization
+  folder_path: string, // e.g., "/Grandma's Letters/Love Letters"
+  collections: [collectionId], // Can be in multiple collections
   
   // Original image data
   image: {
@@ -344,7 +495,7 @@ documents/{documentId} {
     confidence: number,
     language: string,
     processing_time_ms: number,
-    engine_used: "mlkit|cloud_vision|manual"
+    engine_used: "olmocr|olmocr_family_model|manual"
   },
   
   // User corrections
@@ -352,32 +503,58 @@ documents/{documentId} {
     original: string,
     corrected: string,
     position: {start: number, end: number},
+    corrected_by: userId,
     timestamp: timestamp
   }],
   
-  // Audio data
+  // Audio data with HLS
   audio: {
-    storage_path: string,
+    master_file_path: string,
+    hls_playlist_path: string,
+    cdn_base_url: string,
     duration_seconds: number,
     voice_id: string,
-    format: "mp3|m4a",
+    available_qualities: ["64k", "128k", "192k"],
     size_bytes: number
   },
   
-  // Metadata
+  // Rich metadata
   metadata: {
     title: string,
     author: string,
     recipient: string,
     date_written: date,
-    tags: [string]
+    
+    // Flexible tagging system
+    tags: {
+      people: [string], // e.g., ["Grandma Rose", "Uncle John"]
+      topics: [string], // e.g., ["wedding", "war stories", "recipes"]
+      locations: [string], // e.g., ["Brooklyn", "family farm"]
+      time_periods: [string], // e.g., ["1940s", "WWII"]
+      custom: [string] // User-defined tags
+    },
+    
+    // AI-extracted entities
+    mentioned_people: [{
+      name: string,
+      relationship: string,
+      confidence: number
+    }],
+    mentioned_dates: [date],
+    sentiment: "positive|neutral|negative|mixed"
   },
   
-  // Sharing
+  // Enhanced sharing
   sharing: {
     visibility: "private|family|public",
     shared_with: [userId],
-    share_link: string
+    share_link: string,
+    download_allowed: boolean,
+    listen_count: number,
+    last_listened_by: {
+      user_id: string,
+      timestamp: timestamp
+    }
   },
   
   created_at: timestamp,
@@ -434,6 +611,49 @@ family_groups/{groupId} {
   
   created_at: timestamp,
   updated_at: timestamp
+}
+```
+
+#### Folders Collection
+```javascript
+folders/{folderId} {
+  name: string,
+  path: string, // Full path like "/Grandma's Letters/Love Letters"
+  parent_folder_id: string | null,
+  family_group_id: string,
+  
+  // Folder customization
+  icon: string, // emoji or icon identifier
+  color: string, // hex color
+  description: string,
+  
+  // Auto-organization rules
+  auto_tag_rules: [{
+    condition: {
+      field: "author|date_range|content_match",
+      operator: "equals|contains|between",
+      value: any
+    },
+    action: {
+      add_tags: [string],
+      move_to_folder: string
+    }
+  }],
+  
+  // Permissions
+  permissions: {
+    can_add: [userId],
+    can_organize: [userId],
+    can_delete: [userId]
+  },
+  
+  // Stats
+  document_count: number,
+  total_duration_minutes: number,
+  last_modified: timestamp,
+  
+  created_at: timestamp,
+  created_by: userId
 }
 ```
 
@@ -621,28 +841,38 @@ class SecurityManager {
 
 ### Challenge 1: Handwriting Recognition Accuracy
 
-**Problem**: OCR accuracy drops to 60-70% for cursive or aged documents
+**Problem**: OCR accuracy varies significantly with handwriting quality
 
 **Solution**:
-1. **Multi-Engine Approach**
-   - Primary: Google ML Kit (fast, on-device)
-   - Secondary: Cloud Vision API (more accurate)
-   - Tertiary: Specialized services (Transkribus for historical)
+1. **Self-Hosted olmOCR Advantages**
+   - Train custom models on family-specific handwriting
+   - Improve accuracy over time with corrections
+   - No API limits or costs per document
 
-2. **Confidence-Based Processing**
+2. **Family Collaborative Correction**
    ```dart
-   if (confidence < 0.6) {
-     // Offer manual transcription service
-     // Or crowdsource to family members
-   } else if (confidence < 0.8) {
-     // Highlight low-confidence words for review
+   class CollaborativeCorrection {
+     // Family members can help correct difficult passages
+     Future<void> requestFamilyHelp(
+       Document doc,
+       List<LowConfidenceRegion> regions
+     ) async {
+       // Notify family members who might recognize handwriting
+       await _notifyFamilyExperts(doc.authorId, regions);
+       
+       // Aggregate corrections from multiple family members
+       final corrections = await _collectCorrections();
+       
+       // Update olmOCR training data
+       await _olmOCR.updateTrainingData(corrections);
+     }
    }
    ```
 
 3. **Interactive Correction UI**
    - Side-by-side image and text view
    - Word-level confidence highlighting
-   - Smart suggestions based on context
+   - Smart suggestions based on family's writing patterns
 
 ### Challenge 2: Voice Quality for Emotional Content
 
@@ -723,6 +953,43 @@ class SecurityManager {
    - Service workers for offline access
    - Background sync when connection returns
    - IndexedDB for large offline storage
+
+### Challenge 5: Easy Family Onboarding for Non-Tech-Savvy Users
+
+**Problem**: Elderly users struggle with app downloads and account creation
+
+**Solution**:
+1. **One-Click Join Links**
+   ```dart
+   class EasyOnboarding {
+     // Generate simple join codes
+     String generateFamilyCode() {
+       // 6-digit codes easy to share over phone
+       return _generateNumericCode(6); // e.g., "428-319"
+     }
+     
+     // QR codes for in-person sharing
+     Future<QRCode> generateQRInvite(Family family) async {
+       final deepLink = DeepLink(
+         action: 'join_family',
+         familyId: family.id,
+         skipOnboarding: true
+       );
+       return QRCode.generate(deepLink);
+     }
+   }
+   ```
+
+2. **Progressive Onboarding**
+   - Join family first, create account later
+   - Listen to shared memories immediately
+   - Gradual feature discovery
+
+3. **Multi-Channel Invites**
+   - SMS with direct app store links
+   - WhatsApp integration
+   - Email with large "Join Family" button
+   - Physical QR code cards for reunions
 
 ## Implementation Phases
 

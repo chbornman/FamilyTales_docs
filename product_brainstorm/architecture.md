@@ -167,14 +167,75 @@ class AudioEngine {
 }
 ```
 
-### 3. Document Management System
+### 3. Synchronized Playback System
+
+**Visual-Audio Synchronization**:
+```dart
+class SyncPlaybackEngine {
+  // Synchronized display of original document during audio playback
+  Future<SyncedPlayback> prepareSyncedContent(
+    Document document
+  ) async {
+    // Generate word-level timestamps
+    final wordTimings = await _generateWordTimings(
+      document.ocr.text,
+      document.audio.duration_seconds
+    );
+    
+    // Create visual highlights for each word/phrase
+    final visualMarkers = await _createVisualMarkers(
+      document.image,
+      document.ocr.boundingBoxes,
+      wordTimings
+    );
+    
+    // Prepare synchronized display data
+    return SyncedPlayback(
+      audioUrl: document.audio.hls_playlist_path,
+      imageUrl: document.image.storage_path,
+      syncData: SyncData(
+        wordTimings: wordTimings,
+        visualMarkers: visualMarkers,
+        pageBreaks: document.ocr.pageBreaks
+      )
+    );
+  }
+  
+  // Real-time highlight during playback
+  Widget buildSyncedView(SyncedPlayback playback) {
+    return AudioImageSync(
+      onTimeUpdate: (currentTime) {
+        // Highlight current word/line being read
+        _highlightCurrentText(currentTime);
+        // Pan/zoom to keep current text visible
+        _adjustViewport(currentTime);
+      }
+    );
+  }
+}
+```
+
+**Key Features**:
+- **Follow-Along Reading**: Highlighted text moves with audio playback
+- **Smart Viewport**: Auto-pan and zoom to keep current text visible
+- **Manual Override**: Users can zoom/pan while audio continues
+- **Error Recovery**: Visual cues when OCR text doesn't match audio
+
+### 4. Document Management System
 
 **Core Features**:
-- Document categorization (letters, memoirs, journals)
+- Multi-format support (handwritten documents, photos, memorabilia)
+- Document categorization (letters, memoirs, journals, photos, recipes)
 - Metadata extraction (dates, recipients, authors)
 - Version control for corrections
 - Real-time family sharing across continents
 - One-scan-many-listen architecture
+
+**Enhanced Media Support**:
+- **Photo Collections**: Upload and organize family photos
+- **Mixed Media Documents**: Link photos to specific document pages
+- **Timestamp Linking**: Connect images to audio timestamps
+- **Visual Stories**: Create photo slideshows with audio narration
 
 **Geographic Family Sharing**:
 - **Instant Global Access**: One family member scans in USA, relatives in Europe/Asia listen immediately
@@ -185,7 +246,7 @@ class AudioEngine {
 **Storage Architecture**:
 - Local SQLite for offline access
 - Cloud Firestore for real-time sync
-- Cloud Storage for images and master audio files
+- Cloud Storage for images, documents, and master audio files
 - Global CDN with HLS streaming for instant playback
 - Edge caching in regions where family members are located
 
@@ -489,13 +550,22 @@ documents/{documentId} {
     size_bytes: number
   },
   
-  // OCR results
+  // OCR results with synchronization data
   ocr: {
     text: string,
     confidence: number,
     language: string,
     processing_time_ms: number,
-    engine_used: "olmocr|olmocr_family_model|manual"
+    engine_used: "olmocr|olmocr_family_model|manual",
+    
+    // For synchronized playback
+    boundingBoxes: [{
+      word: string,
+      coordinates: {x: number, y: number, width: number, height: number},
+      page: number,
+      confidence: number
+    }],
+    pageBreaks: [number] // Character positions of page breaks
   },
   
   // User corrections
@@ -649,11 +719,87 @@ folders/{folderId} {
   
   // Stats
   document_count: number,
+  photo_count: number,
   total_duration_minutes: number,
   last_modified: timestamp,
   
   created_at: timestamp,
   created_by: userId
+}
+```
+
+#### Photos Collection
+```javascript
+photos/{photoId} {
+  user_id: string,
+  family_group_id: string,
+  
+  // Organization
+  folder_path: string,
+  collections: [collectionId],
+  
+  // Image data
+  image: {
+    storage_path: string,
+    thumbnail_path: string,
+    width: number,
+    height: number,
+    format: string,
+    size_bytes: number
+  },
+  
+  // Linking to documents/audio
+  linked_documents: [{
+    document_id: string,
+    page_number: number,
+    timestamp_seconds: number, // Link to specific audio moment
+    relationship: "illustration|reference|companion"
+  }],
+  
+  // Metadata
+  metadata: {
+    title: string,
+    description: string,
+    date_taken: date,
+    location: {
+      name: string,
+      coordinates: {lat: number, lng: number}
+    },
+    
+    // Same tagging system as documents
+    tags: {
+      people: [string],
+      topics: [string],
+      locations: [string],
+      time_periods: [string],
+      custom: [string]
+    },
+    
+    // AI-detected features
+    detected_faces: [{
+      person_id: string,
+      confidence: number,
+      boundingBox: {x: number, y: number, width: number, height: number}
+    }],
+    detected_text: string, // Any text in the photo
+    scene_description: string
+  },
+  
+  // Audio narration (optional)
+  narration: {
+    audio_path: string,
+    duration_seconds: number,
+    transcript: string,
+    narrator_id: userId
+  },
+  
+  sharing: {
+    visibility: "private|family|public",
+    shared_with: [userId]
+  },
+  
+  created_at: timestamp,
+  updated_at: timestamp
 }
 ```
 

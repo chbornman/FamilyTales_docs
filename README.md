@@ -39,7 +39,7 @@ But these treasures face real challenges:
 2. **🎧 Listen** - Stream instantly or download for offline enjoyment
 3. **👀 Follow Along** - See the original document highlighted as audio plays
 4. **💬 Contribute** - Help correct difficult passages or add context
-5. **📁 Organize** - Create collections and tag memories for easy discovery
+5. **📁 Organize** - Create Memory Books to group related stories
 
 ## ✨ Core Features
 
@@ -56,7 +56,8 @@ But these treasures face real challenges:
 - **Offline Access**: Download for areas with poor connectivity
 
 ### 🎯 Smart Organization
-- **Intelligent Folders**: "/Grandpa's War Letters/1943/From France"
+- **Memory Books**: Organize content by theme ("Dad's War Letters", "Family Road Trip 1975")
+- **Intelligent Folders**: "/Grandpa's Letters/1943/From France"
 - **Rich Tagging**: People, places, dates, topics auto-detected
 - **Photo Integration**: Link photos to specific moments in letters
 - **Timeline View**: See your family history chronologically
@@ -99,7 +100,7 @@ Based on the family-centric nature of FamilyTales, here are additional features 
 - **Annotation Layers**: Family members add context without changing originals
 
 ### 🎨 Creative Outputs
-- **Memory Books**: Print-ready collections with QR codes for audio
+- **Print Memory Books**: Physical books from digital Memory Books with QR codes for audio
 - **Audio Postcards**: Share snippets on social media
 - **Family Podcasts**: Curated audio stories for family reunions
 

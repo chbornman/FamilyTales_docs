@@ -102,7 +102,8 @@ Based on the family-centric nature of FamilyTales, here are additional features 
 ### 🎨 Creative Outputs
 - **Print Memory Books**: 
   - Professional hardcover books with original handwriting + transcribed text
-  - QR codes on each page that launch the app and play that specific audio
+  - Single QR code that opens the Memory Book in the app
+  - Tap any page number in the app to jump to that audio moment
   - Perfect binding, archival paper, multiple size options
   - Ideal for gifts, memorials, milestone celebrations
 - **Audio Postcards**: Share snippets on social media with visual cards
@@ -283,7 +284,8 @@ FamilyTales/
 ### Phase 5: Physical + Digital (Months 13-18) - "Complete Memory Ecosystem"
 - 📚 **Print-on-Demand Memory Books**
   - Beautiful hardcover books from digital Memory Books
-  - QR codes on each page link to audio playback
+  - One QR code opens entire Memory Book in app
+  - In-app page navigation syncs with physical book pages
   - Professional layout with original handwriting + typed text
   - Perfect for gifts, reunions, memorials
 - 🎁 **Memory Box Subscriptions**

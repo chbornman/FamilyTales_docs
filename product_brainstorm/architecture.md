@@ -1609,32 +1609,67 @@ pub enum PageElement {
     OriginalHandwriting {
         image_url: String,
         position: Rectangle,
+        page_number: u32,      // Corresponds to app navigation
     },
     TranscribedText {
         text: String,
         font: FontStyle,
         position: Rectangle,
     },
-    QrCode {
-        audio_url: String,     // Deep link to specific audio
-        document_id: Uuid,
-        position: Point,
-        caption: String,       // "Tap to hear Dad read this"
-    },
     Photo {
         mux_playback_id: String,
         caption: Option<String>,
         position: Rectangle,
     },
+    PageNumber {
+        number: u32,
+        position: Point,
+    },
+}
+
+// Single QR code for the entire book
+pub struct MemoryBookQR {
+    pub memory_book_id: Uuid,
+    pub deep_link: String,  // familytales://book/{id}
+    pub placement: QRPlacement,
+}
+
+pub enum QRPlacement {
+    FrontCover,
+    BackCover, 
+    FirstPage,
+    Custom(u32), // Specific page number
 }
 ```
 
 **Implementation Architecture**:
 - **Print Partner Integration**: Blurb, Lulu, or custom fulfillment
-- **Dynamic QR Generation**: Each QR code deep links to app + specific audio
+- **Single QR Code**: One code on cover/first page opens Memory Book in app
+- **Page Number Navigation**: In-app page selector jumps to audio timestamps
 - **Layout Engine**: Auto-layout with manual override options
 - **Preview System**: 3D book preview before ordering
 - **Quality Control**: High-res image requirements, text legibility checks
+
+**App Integration**:
+```rust
+// Page-to-timestamp mapping stored with Memory Book
+pub struct PageMapping {
+    pub page_number: u32,
+    pub document_id: Uuid,
+    pub audio_timestamp: f64,  // Seconds into combined audio
+    pub image_reference: String,
+}
+
+impl MemoryBookPlayer {
+    pub fn jump_to_page(&mut self, page_number: u32) {
+        if let Some(mapping) = self.page_mappings.get(&page_number) {
+            self.audio_player.seek_to(mapping.audio_timestamp);
+            self.current_image = mapping.image_reference;
+            self.highlight_page_number(page_number);
+        }
+    }
+}
+```
 
 **Business Model**:
 - Base price: $39 for 20 pages

@@ -62,9 +62,10 @@ But these treasures face real challenges:
 - **Timeline View**: See your family history chronologically
 
 ### 🌍 Global Family Features
-- **HLS Streaming**: Adaptive quality based on connection speed
-- **Smart Caching**: Pre-loads content near family members
-- **Time Zone Awareness**: Respectful notifications across continents
+- **Instant Streaming**: Mux handles all HLS complexity automatically
+- **Adaptive Quality**: Automatically adjusts to each family member's connection
+- **Global CDN**: 100+ edge locations for instant playback worldwide
+- **Smart Downloads**: Mux provides direct download links for offline listening
 - **Live Sessions**: Listen together with synchronized playback
 
 ### 📸 Beyond Documents
@@ -129,9 +130,9 @@ Based on the family-centric nature of FamilyTales, here are additional features 
 ## 💰 Business Model
 
 ### Freemium Structure
-- **Free Tier**: 3 document scans per month
-- **Premium**: $9.99/month - Unlimited scans, premium voices, family sharing
-- **Family Legacy**: $19.99/month - Multiple accounts, voice cloning, advanced features
+- **Free Tier**: 3 document scans per month, basic features, no sharing
+- **Premium**: $9.99/month - Unlimited scans, premium voices, family sharing (5 members)
+- **Family Legacy**: $19.99/month - Unlimited family, voice cloning, bulk processing
 - **Enterprise**: Custom pricing for institutions
 
 ### Revenue Projections
@@ -139,14 +140,48 @@ Based on the family-centric nature of FamilyTales, here are additional features 
 - Year 2: $2.8M
 - Year 3: $10.2M (break-even at Month 18)
 
+## 🎯 Why Our Tech Choices
+
+### Why Rust + Axum (Not Firebase)
+- **Performance**: 10x faster than Node.js, perfect for audio processing
+- **Type Safety**: Catch bugs at compile time, not in production
+- **Cost Effective**: Single small VPS can handle thousands of users
+- **Full Control**: Own your auth, data, and user experience
+
+### Why Mux (Not S3 + Manual HLS)
+- **Zero Complexity**: Upload audio, get instant global HLS streaming
+- **Built-in CDN**: No need for CloudFront or separate CDN setup
+- **Audio Normalization**: Consistent volume across all family documents
+- **Direct Playback URLs**: Works immediately with just_audio in Flutter
+- **Cost**: Pay only for what you use, no infrastructure overhead
+
+### Why PostgreSQL + Redis (Not Firestore)
+- **Relational Integrity**: Family relationships need proper foreign keys
+- **Complex Queries**: "Find all letters from Grandma mentioning Uncle John"
+- **Cost Predictable**: Fixed monthly cost vs per-operation billing
+- **Redis Speed**: Instant session management and caching
+
 ## 🛠 Technology Stack
 
-- **Mobile Development**: Flutter (iOS/Android/Web/Desktop)
-- **OCR Engine**: Self-hosted olmOCR with family-specific training
-- **Text-to-Speech**: Google Cloud TTS, Amazon Polly
-- **Streaming**: HLS with global CDN distribution
-- **Backend**: Google Cloud Platform (Cloud Run, Firestore)
-- **Privacy**: On-premise OCR processing, end-to-end encryption
+### Frontend
+- **Mobile/Web/Desktop**: Flutter 3.x (single codebase for all platforms)
+- **Audio Playback**: just_audio with native HLS support
+- **State Management**: Riverpod 2.0 (compile-safe, testable)
+- **Navigation**: go_router with Riverpod integration
+
+### Backend (MVP from Day 1)
+- **API Server**: Rust with Axum framework
+- **Database**: PostgreSQL (primary) + Redis (cache/sessions)
+- **Media Storage**: Mux (handles all video/audio/image storage and HLS streaming)
+- **Job Queue**: RabbitMQ (for future local PC processing)
+- **Authentication**: JWT with Argon2 password hashing
+- **Payments**: Stripe integration
+
+### Processing (MVP → Future)
+- **MVP**: Google Cloud Vision (OCR) + Google Cloud TTS (audio)
+- **Phase 2**: Hybrid model with local PC for premium users
+- **Phase 3**: Self-hosted olmOCR with GPU acceleration
+- **Cost**: ~$0.002/doc OCR + $0.016/doc TTS in MVP phase
 
 ## 🏗 Project Structure
 
@@ -172,25 +207,42 @@ FamilyTales/
 - 🔄 Seeking seed funding
 - ⏳ MVP development (Q1 2025)
 
-## 🎯 Key Features Roadmap
+## 🎯 Implementation Roadmap
 
-### MVP (Months 1-3)
-- Basic OCR for printed and clear handwriting
-- Standard text-to-speech voices
-- Simple document management
-- iOS launch
+### Phase 1: MVP (Months 1-3) - "Launch Fast"
+**Infrastructure**: Rust backend from day 1 (no Firebase)
+- ✅ Rust Axum API server
+- ✅ PostgreSQL + Redis
+- ✅ Mux for all media (automatic HLS streaming)
+- ✅ Third-party OCR/TTS APIs
+- ✅ Freemium model (3 free docs/month)
+- ✅ Basic family sharing
+- 🎯 Target: 1,000 beta users
 
-### Phase 2 (Months 4-6)
-- Advanced handwriting recognition
-- Premium voice options
-- Family sharing features
-- Android launch
+### Phase 2: Hybrid Processing (Months 4-6) - "Premium Experience"
+- 🔄 Add local PC worker for premium users
+- 🔄 RabbitMQ job queue implementation
+- 🔄 Tiered processing (free = cloud, premium = local)
+- 🔄 Voice selection and customization
+- 🔄 Advanced folder organization
+- 💰 60% cost reduction on processing
+- 🎯 Target: 10,000 users
 
-### Phase 3 (Months 7-12)
-- Voice cloning capabilities
-- Multi-language support
-- B2B partnerships
-- API for third-party integration
+### Phase 3: Self-Hosted Scale (Months 7-9) - "Own Your Stack"
+- 🚀 Complete migration to olmOCR
+- 🚀 Multiple local PC workers
+- 🚀 Custom TTS models
+- 🚀 Voice cloning beta
+- 🚀 Family tree integration
+- 🎯 Target: 50,000 users
+
+### Phase 4: Innovation (Months 10-12) - "Market Leader"
+- 🌟 Distributed processing network
+- 🌟 B2B API marketplace
+- 🌟 International expansion
+- 🌟 AI-powered memory prompts
+- 🌟 Legacy planning features
+- 🎯 Target: 100,000+ users
 
 ## 📈 Success Metrics
 

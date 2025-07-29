@@ -106,67 +106,76 @@ class OCREngine {
 }
 ```
 
-### 2. Text-to-Speech Engine & HLS Streaming
+### 2. Text-to-Speech Engine & Mux Streaming
 
-**Primary Service**: Google Cloud Text-to-Speech with HLS Distribution
+**Primary Service**: Google Cloud Text-to-Speech with Mux Distribution
 - 380+ voices across 50+ languages
 - WaveNet and Neural2 voices for natural sound
 - SSML support for pronunciation customization
-- HLS (HTTP Live Streaming) for instant family sharing
+- Mux handles all HLS streaming complexity
 
 **Voice Options**:
 - Standard voices for basic conversion
 - Premium WaveNet voices for emotional content
 - Voice cloning capability (future feature with ElevenLabs)
 
-**Audio Processing & Streaming Pipeline**:
-```dart
-class AudioEngine {
-  // Generate audio and prepare for HLS streaming
-  Future<StreamableAudio> generateAndStream(
-    String text, 
-    VoiceSettings settings,
-    DocumentType type,
-    List<String> familyMemberIds
-  ) async {
-    // Apply document-specific processing
-    final processedText = await _preprocessText(text, type);
-    
-    // Generate audio with appropriate voice
-    final audio = await _ttsService.synthesize(
-      text: processedText,
-      voice: settings.voiceId,
-      speed: settings.speed,
-      pitch: settings.pitch
-    );
-    
-    // Convert to HLS format for streaming
-    final hlsSegments = await _convertToHLS(audio);
-    
-    // Upload to CDN for global family access
-    final streamUrl = await _uploadToCDN(hlsSegments);
-    
-    // Notify family members across the globe
-    await _notifyFamilyMembers(familyMemberIds, streamUrl);
-    
-    return StreamableAudio(
-      streamUrl: streamUrl,
-      duration: audio.duration,
-      format: 'HLS'
-    );
-  }
-  
-  // HLS conversion for adaptive streaming
-  Future<HLSSegments> _convertToHLS(AudioFile audio) async {
-    return await _hlsService.segment(
-      audio: audio,
-      segmentDuration: 10, // 10-second segments
-      bitrates: [64, 128, 192], // Multiple quality levels
-      encryption: true // Encrypted segments for privacy
-    );
-  }
+**Audio Processing & Mux Integration**:
+```rust
+use mux_rust_sdk::{MuxClient, CreateAssetRequest};
+
+pub struct AudioProcessor {
+    tts_client: GoogleTtsClient,
+    mux_client: MuxClient,
+}
+
+impl AudioProcessor {
+    pub async fn process_document(&self, document: &Document) -> Result<MuxAsset> {
+        // Generate audio from text
+        let audio_data = self.tts_client
+            .synthesize(SynthesizeRequest {
+                text: &document.ocr_text,
+                voice: document.voice_settings,
+                audio_config: AudioConfig {
+                    audio_encoding: AudioEncoding::Mp3,
+                    speaking_rate: document.speed,
+                },
+            })
+            .await?;
+        
+        // Upload to Mux - they handle everything else
+        let asset = self.mux_client
+            .create_asset(CreateAssetRequest {
+                input: audio_data,
+                playback_policy: vec!["public"],
+                audio_only: true,
+                normalize_audio: true,
+                master_access: "temporary", // For downloads
+                mp4_support: "standard",
+            })
+            .await?;
+        
+        // Mux automatically creates:
+        // - HLS streams with multiple bitrates
+        // - Global CDN distribution
+        // - Playback URLs for each quality
+        
+        Ok(MuxAsset {
+            playback_id: asset.playback_ids[0].id,
+            hls_url: format!("https://stream.mux.com/{}.m3u8", asset.playback_ids[0].id),
+            download_url: asset.master_access_url,
+            duration: asset.duration,
+        })
+    }
 }
 ```
+
+**Mux Advantages**:
+- **Zero HLS Complexity**: Mux handles all segmentation and packaging
+- **Instant Global Delivery**: Built-in CDN with 100+ edge locations
+- **Adaptive Bitrates**: Automatically adjusts quality based on connection
+- **Audio Normalization**: Consistent volume across all documents
+- **Analytics Included**: Track plays, completion rates, bandwidth usage
+- **Direct Playback URLs**: No need to manage streaming infrastructure
 
 ### 3. Synchronized Playback System
 
@@ -336,8 +345,9 @@ dependencies:
   firebase_messaging: ^14.7.0  # Push notifications
   web_socket_channel: ^2.4.0  # Live listening sessions
   
-  # UI/UX
-  provider: ^6.1.0
+  # UI/UX and State Management
+  flutter_riverpod: ^2.4.0  # Better than Provider - compile-safe, testable
+  riverpod_annotation: ^2.3.0  # Code generation for providers
   go_router: ^12.1.0
   flutter_animate: ^4.3.0
 ```
@@ -402,7 +412,7 @@ pub enum JobType {
 - **PostgreSQL**: Primary database for relational data
 - **Redis**: Session cache and job queue state
 - **RabbitMQ**: Job queue for communication with local PC
-- **MinIO**: Self-hosted S3-compatible object storage
+- **Mux**: Video/audio storage, streaming, and processing
 - **Nginx**: Reverse proxy and static file serving
 - **Local PC Worker**: Powerful machine running job processor
 
@@ -676,8 +686,9 @@ CREATE TABLE documents (
     -- Organization
     folder_path VARCHAR(500),
     
-    -- Image data
-    image_s3_key VARCHAR(500),
+    -- Image data (stored in Mux)
+    image_mux_asset_id VARCHAR(255),
+    image_mux_playback_id VARCHAR(255),
     image_width INTEGER,
     image_height INTEGER,
     image_size_bytes BIGINT,
@@ -691,12 +702,12 @@ CREATE TABLE documents (
     ocr_bounding_boxes JSONB, -- Array of word boundaries
     ocr_page_breaks INTEGER[], -- Character positions
     
-    -- Audio data
-    audio_s3_key VARCHAR(500),
-    audio_hls_playlist_key VARCHAR(500),
+    -- Audio data (Mux handles all streaming)
+    audio_mux_asset_id VARCHAR(255),
+    audio_mux_playback_id VARCHAR(255),
     audio_duration_seconds DECIMAL(10,2),
     audio_voice_id VARCHAR(50),
-    audio_available_qualities TEXT[],
+    audio_mux_download_url TEXT,
     audio_size_bytes BIGINT,
     
     -- Metadata
@@ -762,7 +773,7 @@ CREATE TABLE collections (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    cover_image_s3_key VARCHAR(500),
+    cover_image_mux_playback_id VARCHAR(255),
     visibility VARCHAR(20) DEFAULT 'private' CHECK (visibility IN ('private', 'family', 'public')),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -856,9 +867,10 @@ CREATE TABLE photos (
     -- Organization
     folder_path VARCHAR(1000),
     
-    -- Image data
-    image_s3_key VARCHAR(500) NOT NULL,
-    thumbnail_s3_key VARCHAR(500),
+    -- Image data (Mux stores images too)
+    image_mux_asset_id VARCHAR(255) NOT NULL,
+    image_mux_playback_id VARCHAR(255) NOT NULL,
+    thumbnail_mux_playback_id VARCHAR(255),
     width INTEGER,
     height INTEGER,
     format VARCHAR(10),
@@ -877,7 +889,8 @@ CREATE TABLE photos (
     scene_description TEXT,
     
     -- Narration (optional)
-    narration_s3_key VARCHAR(500),
+    narration_mux_asset_id VARCHAR(255),
+    narration_mux_playback_id VARCHAR(255),
     narration_duration_seconds DECIMAL(10,2),
     narration_transcript TEXT,
     narrator_id UUID REFERENCES users(id),
@@ -1472,7 +1485,7 @@ Months 7+: Full self-hosted (once revenue justifies it)
 - Rust Axum web server on VPS/Cloud
 - PostgreSQL database
 - Redis for caching and sessions
-- S3 (or S3-compatible) for file storage
+- Mux for media storage and streaming
 - Third-party OCR (Google Vision) and TTS APIs
 - Stripe for payments
 
@@ -1484,12 +1497,22 @@ axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "migrate"] }
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
-aws-sdk-s3 = "1.5"
 stripe-rust = "0.13"
 reqwest = { version = "0.11", features = ["json"] }
 jsonwebtoken = "9.2"
 argon2 = "0.5"
+
+# Mux integration (using their REST API)
+serde_json = "1.0"
 ```
+
+**Mux Integration Benefits**:
+- Built-in HLS streaming (no manual segmentation needed)
+- Automatic quality variants
+- Global CDN included
+- Audio normalization
+- Thumbnail generation
+- Usage analytics
 
 **Deployment**:
 - Single VPS or small Kubernetes cluster
